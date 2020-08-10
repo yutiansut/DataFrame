@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -31,12 +31,28 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <cstdio>
 #include <ctime>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <sys/timeb.h>
 
-#ifdef _WIN32
+#if defined(_WIN32)
 #  include <windows.h>
+#  if defined(HMDF_SHARED)
+#    ifdef LIBRARY_EXPORTS
+#      define LIBRARY_API __declspec(dllexport)
+#    else
+#      define LIBRARY_API __declspec(dllimport)
+#    endif // LIBRARY_EXPORTS
+#  endif // HMDF_SHARED
+#  ifdef min
+#    undef min
+#  endif // min
+#  ifdef max
+#    undef max
+#  endif // max
+#else
+#  define LIBRARY_API
 #endif // _WIN32
 
 // ----------------------------------------------------------------------------
@@ -143,7 +159,7 @@ enum class DT_DATE_STYLE : unsigned char  {
 
 // ----------------------------------------------------------------------------
 
-class   DateTime  {
+class LIBRARY_API DateTime {
 
 public:
 
@@ -154,14 +170,21 @@ public:
     using SecondType = unsigned short int;   // 0 - 59
     using MillisecondType = short int;       // 0 - 999
     using MicrosecondType = int;             // 0 - 999,999
-    using NanosecondType =  int;             // 0 - 999,999,999
+    using NanosecondType = int;              // 0 - 999,999,999
     using EpochType = time_t;                // Signed epoch
     using LongTimeType = long long int;      // Nano seconds since epoch
 
 private:
 
+    template<typename T>
+    using INVALID_VALUE_ = typename std::numeric_limits<T>;
+
     static const char       *TIMEZONES_[];
-    static const EpochType  INVALID_TIME_T_ = -1;
+    static const EpochType  INVALID_TIME_T_ = INVALID_VALUE_<EpochType>::max();
+    static const DateType   INVALID_DATE_ = INVALID_VALUE_<DateType>::max();
+    static const HourType   INVALID_HOUR_ = INVALID_VALUE_<HourType>::max();
+    static const MinuteType INVALID_MINUTE_ = INVALID_VALUE_<MinuteType>::max();
+    static const SecondType INVALID_SECOND_ = INVALID_VALUE_<SecondType>::max();
 
     // This guy initializes anything that needs to be initialized
     // statically.
@@ -172,14 +195,17 @@ private:
 
     friend class    DT_initializer;
 
-    DateType        date_ { DateType(INVALID_TIME_T_) };   // e.g. 20001025
-    HourType        hour_ { HourType(INVALID_TIME_T_) };
-    MinuteType      minute_ { MinuteType(INVALID_TIME_T_) };
-    SecondType      second_ { SecondType(INVALID_TIME_T_) };
+    DateType        date_ { INVALID_DATE_ };  // Like 20190518
+    HourType        hour_ { INVALID_HOUR_ };
+    MinuteType      minute_ { INVALID_MINUTE_ };
+    SecondType      second_ { INVALID_SECOND_ };
     NanosecondType  nanosecond_ { 0 };
     EpochType       time_ { INVALID_TIME_T_ }; // Sec since 01/01/1970 (Epoch)
     DT_WEEKDAY      week_day_ { DT_WEEKDAY::BAD_DAY };
-    DT_TIME_ZONE    time_zone_ { };
+    DT_TIME_ZONE    time_zone_ { DT_TIME_ZONE::LOCAL };
+
+    inline static void change_env_timezone_(DT_TIME_ZONE time_zone);
+    inline static void reset_env_timezone_(DT_TIME_ZONE time_zone);
 
 public:
 

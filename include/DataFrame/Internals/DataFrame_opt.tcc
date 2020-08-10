@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -37,7 +37,7 @@ namespace hmdf
 // ----------------------------------------------------------------------------
 
 template<typename I, typename  H>
-template<typename ... types>
+template<typename ... Ts>
 bool DataFrame<I, H>::is_equal (const DataFrame &rhs) const  {
 
     if (column_tb_.size() != rhs.column_tb_.size())
@@ -46,9 +46,13 @@ bool DataFrame<I, H>::is_equal (const DataFrame &rhs) const  {
         return (false);
 
     for (const auto &iter : column_tb_)  {
-        equal_functor_<types ...>   functor (iter.first.c_str(), *this);
+        auto    rhs_citer = rhs.column_tb_.find(iter.first);
 
-        rhs.data_[iter.second].change(functor);
+        if (rhs_citer == rhs.column_tb_.end())  return (false);
+
+        equal_functor_<Ts ...>   functor (iter.first.c_str(), *this);
+
+        rhs.data_[rhs_citer->second].change(functor);
         if (! functor.result)
             return (false);
     }
@@ -59,13 +63,13 @@ bool DataFrame<I, H>::is_equal (const DataFrame &rhs) const  {
 // ----------------------------------------------------------------------------
 
 template<typename I, typename  H>
-template<typename ... types>
+template<typename ... Ts>
 DataFrame<I, H> &DataFrame<I, H>::
 modify_by_idx (DataFrame &rhs, sort_state already_sorted)  {
 
     if (already_sorted == sort_state::not_sorted)  {
-        rhs.sort<IndexType, types ...>(DF_INDEX_COL_NAME, sort_spec::ascen);
-        sort<IndexType, types ...>(DF_INDEX_COL_NAME, sort_spec::ascen);
+        rhs.sort<IndexType, Ts ...>(DF_INDEX_COL_NAME, sort_spec::ascen);
+        sort<IndexType, Ts ...>(DF_INDEX_COL_NAME, sort_spec::ascen);
     }
 
     const size_type lhs_s { indices_.size() };
@@ -78,7 +82,7 @@ modify_by_idx (DataFrame &rhs, sort_state already_sorted)  {
 
         if (indices_[lhs_i] == rhs.indices_[rhs_i])  {
             for (auto &iter : column_tb_)  {
-                mod_by_idx_functor_<types ...>  functor (iter.first.c_str(),
+                mod_by_idx_functor_<Ts ...>  functor (iter.first.c_str(),
                                                          rhs,
                                                          lhs_i,
                                                          rhs_i);

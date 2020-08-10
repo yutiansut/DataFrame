@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -28,8 +28,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <DataFrame/DataFrame.h>
+#include <DataFrame/DataFrameStatsVisitors.h>
 
 #include <algorithm>
+#include <cmath>
+#include <functional>
 #include <future>
 #include <limits>
 #include <random>
@@ -154,7 +157,7 @@ fill_missing_ffill_(std::vector<T> &vec, int limit, size_type col_num)  {
     int count = 0;
     T   last_value = vec[0];
 
-    for (size_type i = 0; i < col_num; ++i)  {
+    for (size_type i = 1; i < col_num; ++i)  {
         if (limit >= 0 && count >= limit)  break;
         if (i >= vec_size)  {
             if (! _is_nan(last_value))  {
@@ -165,10 +168,59 @@ fill_missing_ffill_(std::vector<T> &vec, int limit, size_type col_num)  {
             else  break;
         }
         else  {
-            if (! _is_nan<T>(vec[i]))  last_value = vec[i];
-            if (_is_nan<T>(vec[i]) && ! _is_nan<T>(last_value))  {
+            if (! _is_nan<T>(vec[i]))
+                last_value = vec[i];
+            else if (! _is_nan<T>(last_value))  {
                 vec[i] = last_value;
                 count += 1;
+            }
+        }
+    }
+    return;
+}
+
+// ----------------------------------------------------------------------------
+
+template<typename I, typename H>
+template<typename T,
+         typename std::enable_if<! std::is_arithmetic<T>::value ||
+                                 ! std::is_arithmetic<I>::value>::type*>
+void DataFrame<I, H>::
+fill_missing_midpoint_(std::vector<T> &vec, int limit, size_type col_num)  {
+
+    throw NotFeasible("fill_missing_midpoint_(): ERROR: Mid-point filling is "
+                      "not feasible on non-arithmetic types");
+}
+
+// ----------------------------------------------------------------------------
+
+template<typename I, typename H>
+template<typename T,
+         typename std::enable_if<std::is_arithmetic<T>::value &&
+                                 std::is_arithmetic<I>::value>::type*>
+void DataFrame<I, H>::
+fill_missing_midpoint_(std::vector<T> &vec, int limit, size_type col_num)  {
+
+    const size_type vec_size = vec.size();
+
+    if (vec_size < 3)  return;
+
+    int count = 0;
+    T   last_value = vec[0];
+
+    for (size_type i = 1; i < vec_size - 1; ++i)  {
+        if (limit >= 0 && count >= limit)  break;
+
+        if (! _is_nan<T>(vec[i]))
+            last_value = vec[i];
+        else if (! _is_nan<T>(last_value))  {
+            for (size_type j = i + 1; j < vec_size; ++j)  {
+                if (! _is_nan<T>(vec[j]))  {
+                    vec[i] = (last_value + vec[j]) / T(2);
+                    last_value = vec[i];
+                    count += 1;
+                    break;
+                }
             }
         }
     }
@@ -266,11 +318,13 @@ fill_missing_linter_(std::vector<T> &vec,
                 (*y2 - *y1);
             count += 1;
         }
-        y1 = &(vec[i]);
-        y2 = &(vec[i + 2]);
-        x = &(index[i + 1]);
-        x1 = &(index[i]);
-        x2 = &(index[i + 2]);
+        if (i < (vec_size - 2))  {
+            y1 = &(vec[i]);
+            y2 = &(vec[i + 2]);
+            x = &(index[i + 1]);
+            x1 = &(index[i]);
+            x2 = &(index[i + 2]);
+        }
     }
 
     return;
@@ -344,6 +398,19 @@ fill_missing(const std::array<const char *, N> col_names,
                 thread_count += 1;
             }
         }
+        else if (fp == fill_policy::mid_point)  {
+            if (thread_count >= get_thread_level())
+                fill_missing_midpoint_(vec, limit, indices_.size());
+            else  {
+                futures[thread_count] =
+                    std::async(std::launch::async,
+                               &DataFrame::fill_missing_midpoint_<T>,
+                               std::ref(vec),
+                               limit,
+                               indices_.size());
+                thread_count += 1;
+            }
+        }
         else if (fp == fill_policy::linear_extrapolate)  {
             char buffer [512];
 
@@ -376,19 +443,19 @@ drop_missing_rows_(T &vec,
     for (auto &iter : missing_row_map)  {
         if (policy == drop_policy::all)  {
             if (iter.second == col_num)  {
-                vec.erase(vec.begin() + iter.first - erase_count);
+                vec.erase(vec.begin() + (iter.first - erase_count));
                 erase_count += 1;
             }
         }
         else if (policy == drop_policy::any)  {
             if (iter.second > 0)  {
-                vec.erase(vec.begin() + iter.first - erase_count);
+                vec.erase(vec.begin() + (iter.first - erase_count));
                 erase_count += 1;
             }
         }
         else if (policy == drop_policy::threshold)  {
             if (iter.second > threshold)  {
-                vec.erase(vec.begin() + iter.first - erase_count);
+                vec.erase(vec.begin() + (iter.first - erase_count));
                 erase_count += 1;
             }
         }
@@ -597,7 +664,7 @@ void DataFrame<I, H>::sort(const char *name, sort_spec dir)  {
                         return (this->indices_[i] < this->indices_[j]);
                     };
         auto    d = [this](size_type i, size_type j) -> bool  {
-                        return (this->indices_[i] >= this->indices_[j]);
+                        return (this->indices_[i] > this->indices_[j]);
                     };
 
 
@@ -613,7 +680,7 @@ void DataFrame<I, H>::sort(const char *name, sort_spec dir)  {
                         return (x[i] < x[j]);
                     };
         auto    d = [&x = idx_vec](size_type i, size_type j) -> bool {
-                        return (x[i] >= x[j]);
+                        return (x[i] > x[j]);
                     };
 
         if (dir == sort_spec::ascen)
@@ -664,7 +731,7 @@ sort(const char *name1, sort_spec dir1, const char *name2, sort_spec dir2)  {
             if (dir2 == sort_spec::ascen)
                 return (vec2->at(i) < vec2->at(j));
             else
-                return (vec2->at(i) >= vec2->at(j));
+                return (vec2->at(i) > vec2->at(j));
         };
 
     sort_common_<decltype(cf), Ts ...>(*this, std::move(cf));
@@ -731,7 +798,7 @@ sort(const char *name1, sort_spec dir1,
             if (dir3 == sort_spec::ascen)
                 return (vec3->at(i) < vec3->at(j));
             else
-                return (vec3->at(i) >= vec3->at(j));
+                return (vec3->at(i) > vec3->at(j));
         };
 
     sort_common_<decltype(cf), Ts ...>(*this, std::move(cf));
@@ -817,7 +884,7 @@ sort(const char *name1, sort_spec dir1,
             if (dir4 == sort_spec::ascen)
                 return (vec4->at(i) < vec4->at(j));
             else
-                return (vec4->at(i) >= vec4->at(j));
+                return (vec4->at(i) > vec4->at(j));
         };
 
     sort_common_<decltype(cf), Ts ...>(*this, std::move(cf));
@@ -923,7 +990,7 @@ sort(const char *name1, sort_spec dir1,
             if (dir5 == sort_spec::ascen)
                 return (vec5->at(i) < vec5->at(j));
             else
-                return (vec5->at(i) >= vec5->at(j));
+                return (vec5->at(i) > vec5->at(j));
         };
 
     sort_common_<decltype(cf), Ts ...>(*this, std::move(cf));

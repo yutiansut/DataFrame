@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -36,6 +36,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iostream>
 #include <string.h>
 
+#if defined(_WIN32) && defined(HMDF_SHARED)
+#  ifdef LIBRARY_EXPORTS
+#    define LIBRARY_API __declspec(dllexport)
+#  else
+#    define LIBRARY_API __declspec(dllimport)
+#  endif // LIBRARY_EXPORTS
+#else
+#  define LIBRARY_API
+#endif // _WIN32
+
 // ----------------------------------------------------------------------------
 
 namespace hmdf
@@ -50,8 +60,8 @@ namespace hmdf
 // NOTE: VirtualString MAKES NO BOUNDARY CHECKS. IT IS THE RESPONSIBILITY
 //       OF THE PROGRAMMER TO TAKE CARE OF THAT.
 //
-class   VirtualString  {
 
+class LIBRARY_API VirtualString {
 public:
 
     using size_type = std::size_t;
@@ -102,8 +112,7 @@ public:
     }
     inline VirtualString &ncopy (const_pointer rhs, size_type len) noexcept  {
 
-        ::strncpy (string_, rhs, len);
-        string_ [len] = 0;
+        ::snprintf(string_, len, "%s", rhs);
         return (*this);
     }
 
@@ -346,8 +355,7 @@ public:
     }
     inline FixedSizeString &operator = (const_pointer rhs) noexcept {
 
-        ::strncpy (buffer_, rhs, S);
-        buffer_ [S] = 0;
+        ::snprintf(buffer_, S, "%s", rhs);
         return (*this);
     }
     inline FixedSizeString &operator = (const VirtualString &rhs) noexcept  {

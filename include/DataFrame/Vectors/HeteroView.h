@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -48,6 +48,19 @@ public:
     HeteroView() = default;
     template<typename T>
     HeteroView(T *begin_ptr, T *end_ptr);
+
+    // The purpose of this method is for the user be able to conform to STL
+    // standards.
+    // To create a VectorView over an entire std::vector you have to do this:
+    //        VectorView(&(*v.begin()), &(*v.end()));
+    // The above second parameter is against standards and it is caught
+    // if you set the STL boundary check flag. So instead, you can do:
+    //        VectorView vv;
+    //        vv.set_begin_end_special(&(*v.begin()), &(v.back()));
+    //
+    template<typename T>
+    void set_begin_end_special(T *bp, T *ep_1);
+
     HeteroView(const HeteroView &that);
     HeteroView(HeteroView &&that);
 
@@ -118,15 +131,18 @@ public:
 private:
 
     template<typename T>
-    inline static std::unordered_map<const HeteroView *, VectorView<T>>
-        views_ {  };
+    inline static
+    std::unordered_map<const HeteroView *, VectorView<T>>   views_ {  };
 
     std::function<void(HeteroView &)>   clear_function_ {
-        [](HeteroView &) { return; } };
+        [](HeteroView &) { return; }
+    };
     std::function<void(const HeteroView &, HeteroView &)>   copy_function_ {
-        [](const HeteroView &, HeteroView &)  { return; } };
+        [](const HeteroView &, HeteroView &)  { return; }
+    };
     std::function<void(HeteroView &, HeteroView &)> move_function_  {
-        [](HeteroView &, HeteroView &)  { return; } };
+        [](HeteroView &, HeteroView &)  { return; }
+    };
 
     // Visitor stuff
     //

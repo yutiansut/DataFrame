@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -42,7 +42,7 @@ static inline std::vector<T>
 _gen_rand_(std::size_t n, const RandGenParams<T> &params, D &&dist)  {
 
     std::random_device  rd;
-    std::mt19937        gen(rd());
+    std::mt19937_64     gen(rd());
 
     if (params.seed != static_cast<unsigned int>(-1))  gen.seed(params.seed);
 
@@ -132,7 +132,7 @@ gen_binomial_dist(std::size_t n, const RandGenParams<T> &params)  {
 
     return (_gen_rand_<T, D>(
                 n, params,
-                std::binomial_distribution<T>(params.t_dist,
+                std::binomial_distribution<T>(static_cast<T>(params.t_dist),
                                               params.prob_true)));
 }
 
@@ -158,8 +158,8 @@ gen_negative_binomial_dist(std::size_t n, const RandGenParams<T> &params)  {
 
     return (_gen_rand_<T, D>(
                 n, params,
-                std::negative_binomial_distribution<T>(params.t_dist,
-                                                       params.prob_true)));
+                std::negative_binomial_distribution<T>
+                    (static_cast<T>(params.t_dist), params.prob_true)));
 }
 
 // ----------------------------------------------------------------------------

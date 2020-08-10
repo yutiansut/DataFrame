@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -112,6 +112,13 @@ enum class join_policy : unsigned char  {
 
 // ----------------------------------------------------------------------------
 
+enum class concat_policy : unsigned char  {
+    common_columns = 1,
+    all_columns = 2,
+    lhs_and_common_columns = 3,
+};
+
+// ----------------------------------------------------------------------------
 // This policy is relative to a tabular data structure
 // There is no right or left shift (like Pandas), because columns in DataFrame
 // have no ordering. They can only be accessed by name
@@ -133,7 +140,17 @@ enum class fill_policy : unsigned char  {
     // Y = Y1 + ------- * (Y2 - Y1)
     //          X2 - X1
     linear_interpolate = 4,  // Using the index as X coordinate
-    linear_extrapolate = 5   // Using the index as X coordinate
+    linear_extrapolate = 5,  // Using the index as X coordinate
+    mid_point = 6,           // Mid-point of x and y
+};
+
+// ----------------------------------------------------------------------------
+
+enum class quantile_policy : unsigned char  {
+    lower_value = 1,   // Take the higher index
+    higher_value = 2,  // Take the lower index
+    mid_point = 3,     // Average the two quantiles
+    linear = 4,        // Linearly combine the two quantiles
 };
 
 // ----------------------------------------------------------------------------
@@ -151,6 +168,18 @@ enum class exponential_decay_spec : unsigned char  {
     span = 2,              // decay = 2 / (1 + value), for value >= 1
     halflife = 3,          // decay = 1 − exp(log(0.5) / value), for value > 0
     fixed = 4,             // decay = value, for 0 < value <= 1
+};
+
+// ----------------------------------------------------------------------------
+
+// It defines different ways of calculating averages around averages,
+// in other words different types of Mean Absolute Deviation.
+//
+enum class mad_type : unsigned char  {
+    mean_abs_dev_around_mean = 1,
+    mean_abs_dev_around_median = 2,
+    median_abs_dev_around_mean = 3,
+    median_abs_dev_around_median = 4,
 };
 
 // ----------------------------------------------------------------------------
@@ -198,6 +227,46 @@ enum class random_policy : unsigned char  {
     num_rows_no_seed = 2,    // Number of rows with no seed specification
     frac_rows_with_seed = 3, // Fraction of rows with specifying a seed
     frac_rows_no_seed = 4,   // Fraction of rows with no seed specification
+};
+
+// ----------------------------------------------------------------------------
+
+enum class pattern_spec : unsigned char  {
+    monotonic_increasing = 1,           // i >= j
+    strictly_monotonic_increasing = 2,  // i > j
+    monotonic_decreasing = 3,           // i <= j
+    strictly_monotonic_decreasing = 4,  // i < j
+    normally_distributed = 6,  // 68%-95%-99.7% 3-sigma rule to approximate
+    standard_normally_distributed = 7,  // Same as normal + 0/1.0 check
+    lognormally_distributed = 8, // Uses the above normal test on the log(x)
+};
+
+// ----------------------------------------------------------------------------
+
+// Specification for RankVisitor
+// This specifies how to assign ranks to members of a column
+//
+enum class rank_policy : unsigned char  {
+    average = 1,  // Average of ranks, if an item is repeated
+    first = 2,    // First rank, if an item is repeated
+    last = 3,     // Last rank, if an item is repeated
+    actual = 4,   // The actual rank of each item based on stable sort
+};
+
+// ----------------------------------------------------------------------------
+
+// Different types of Sigmiod functions. For now, there is no integration
+//
+enum class sigmiod_type : unsigned char  {
+    logistic = 1,        // f(x) = 1 / (1 + exp(-x))
+    algebraic = 2,       // f(x) = 1 / sqrt(1 + pow(x, 2.0))
+    // f(x) = [(exp(x) - exp(-x)) / (exp(x) + exp(-x))] = tanh(x)
+    hyperbolic_tan = 3,
+    arc_tan = 4,         // f(x) = atan(x)
+    error_function = 5,  // f(x) = 2/sqrt(pi) * ∫exp(-pow(t, 2) dt
+    gudermannian = 6,    // f(x) = atan(sinh(x))
+    // f(x) = 0 if x <= 0, 1 if x >= 1 else 3pow(x, 2) - 2pow(x, 3)
+    smoothstep = 7,
 };
 
 // ----------------------------------------------------------------------------

@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -31,10 +31,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <DataFrame/DataFrameTypes.h>
 
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <functional>
+#include <map>
 #include <numeric>
 
 // ----------------------------------------------------------------------------
@@ -42,23 +43,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace hmdf
 {
 
+#define DEFINE_VISIT_BASIC_TYPES \
+    using value_type = T; \
+    using index_type = I; \
+    using size_type = std::size_t;
+
+#define DEFINE_VISIT_BASIC_TYPES_2 \
+    DEFINE_VISIT_BASIC_TYPES \
+    using result_type = T;
+
+#define DEFINE_VISIT_BASIC_TYPES_3 \
+    DEFINE_VISIT_BASIC_TYPES \
+    using result_type = std::vector<T>;
+
 template<typename T,
          typename I = unsigned long,
          typename =
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct MeanVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void operator() (const index_type &, const value_type &val)  {
 
         if (skip_nan_ && is_nan__(val))  return;
 
         mean_ += val;
-        cnt_ +=1;
+        cnt_ += 1;
     }
     inline void pre ()  { mean_ = 0; cnt_ = 0; }
     inline void post ()  {  }
@@ -86,17 +97,14 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct GeometricMeanVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void operator() (const index_type &, const value_type &val)  {
 
         if (skip_nan_ && is_nan__(val))  return;
 
         mean_ *= val;
-        cnt_ +=1;
+        cnt_ += 1;
     }
     inline void pre ()  { mean_ = value_type(1); cnt_ = 0; }
     inline void post ()  {  }
@@ -125,17 +133,14 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct HarmonicMeanVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void operator() (const index_type &, const value_type &val)  {
 
         if (skip_nan_ && is_nan__(val))  return;
 
         mean_ += value_type(1) / val;
-        cnt_ +=1;
+        cnt_ += 1;
     }
     inline void pre ()  { mean_ = 0; cnt_ = 0; }
     inline void post ()  {  }
@@ -164,10 +169,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct SumVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void operator() (const index_type &, const value_type &val)  {
 
@@ -195,10 +197,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct ProdVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void operator() (const index_type &, const value_type &val)  {
 
@@ -223,10 +222,7 @@ private:
 template<typename T, typename I = unsigned long>
 struct MaxVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void operator() (const index_type &idx, const value_type &val)  {
 
@@ -264,10 +260,7 @@ private:
 template<typename T, typename I = unsigned long>
 struct MinVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void operator() (const index_type &idx, const value_type &val)  {
 
@@ -313,9 +306,7 @@ private:
 template<std::size_t N, typename T, typename I = unsigned long>
 struct  NLargestVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
+    DEFINE_VISIT_BASIC_TYPES
 
     struct  DataItem  {
         value_type  value { };
@@ -385,9 +376,7 @@ private:
 template<std::size_t N, typename T, typename I = unsigned long>
 struct  NSmallestVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
+    DEFINE_VISIT_BASIC_TYPES
 
     struct  DataItem  {
         value_type  value { };
@@ -452,10 +441,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct CovVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     explicit CovVisitor (bool biased = false, bool skipnan = true)
         : b_ (biased), skip_nan_(skipnan) {  }
@@ -501,6 +487,8 @@ struct CovVisitor {
                 (value_type(cnt_) - b));
     }
 
+    inline size_type get_count() const  { return (cnt_); }
+
 private:
 
     value_type  total1_ { 0 };
@@ -521,10 +509,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct VarVisitor  {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     explicit VarVisitor (bool biased = false) : cov_ (biased)  {   }
     inline void operator() (const index_type &idx, const value_type &val)  {
@@ -534,6 +519,7 @@ struct VarVisitor  {
     inline void pre ()  { cov_.pre(); }
     inline void post ()  { cov_.post(); }
     inline result_type get_result () const  { return (cov_.get_result()); }
+    inline size_type get_count() const  { return (cov_.get_count()); }
 
 private:
 
@@ -548,10 +534,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct BetaVisitor  {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     explicit BetaVisitor (bool biased = false) : cov_ (biased)  {   }
     inline void operator() (const index_type &idx,
@@ -568,6 +551,7 @@ struct BetaVisitor  {
                     ? cov_.get_result() / cov_.get_var2()
                     : std::numeric_limits<value_type>::quiet_NaN());
     }
+    inline size_type get_count() const  { return (cov_.get_count()); }
 
 private:
 
@@ -582,10 +566,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct StdVisitor   {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     explicit StdVisitor (bool biased = false) : var_ (biased)  {   }
     inline void operator() (const index_type &idx, const value_type &val)  {
@@ -598,10 +579,41 @@ struct StdVisitor   {
 
         return (::sqrt(var_.get_result()));
     }
+    inline size_type get_count() const  { return (var_.get_count()); }
 
 private:
 
     VarVisitor<value_type, index_type>  var_;
+};
+
+// ----------------------------------------------------------------------------
+
+// Standard Error of the Mean
+//
+template<typename T,
+         typename I = unsigned long,
+         typename =
+             typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
+struct SEMVisitor   {
+
+    DEFINE_VISIT_BASIC_TYPES_2
+
+    explicit SEMVisitor (bool biased = false) : std_ (biased)  {   }
+    inline void operator() (const index_type &idx, const value_type &val)  {
+
+        std_ (idx, val);
+    }
+    inline void pre ()  { std_.pre(); }
+    inline void post ()  { std_.post(); }
+    inline result_type get_result () const  {
+
+        return (std_.get_result() / ::sqrt(get_count()));
+    }
+    inline size_type get_count() const  { return (std_.get_count()); }
+
+private:
+
+    StdVisitor<value_type, index_type>  std_;
 };
 
 // ----------------------------------------------------------------------------
@@ -612,10 +624,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct TrackingErrorVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     explicit TrackingErrorVisitor (bool biased = false) : std_ (biased) {  }
     inline void operator() (const index_type &idx,
@@ -643,10 +652,7 @@ struct CorrVisitor  {
 
 public:
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     explicit CorrVisitor (bool biased = false) : cov_ (biased)  {   }
     inline void operator() (const index_type &idx,
@@ -676,10 +682,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct DotProdVisitor  {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void operator() (const index_type &,
                             const value_type &val1,
@@ -714,11 +717,10 @@ private:
 
 public:
 
-    using value_type = T;
-    using index_type = I;
+    DEFINE_VISIT_BASIC_TYPES
     using result_type = std::vector<f_result_type>;
 
-    inline SimpleRollAdopter(F &&functor, size_t r_count)
+    inline SimpleRollAdopter(F &&functor, size_type r_count)
         : visitor_(std::move(functor)), roll_count_(r_count)  {   }
 
     template <typename K, typename H>
@@ -727,21 +729,83 @@ public:
 
         if (roll_count_ == 0)  return;
 
+        const size_type col_s = std::min(idx.size(), column.size());
+
+        result_.reserve(col_s);
+
+        for (size_type i = 0; i < roll_count_ - 1 && i < col_s; ++i)
+            result_.push_back(std::numeric_limits<f_result_type>::quiet_NaN());
+        for (size_type i = 0; i < col_s; ++i)  {
+            size_type   r = 0;
+
+            visitor_.pre();
+            for (size_type j = i; r < roll_count_ && j < col_s; ++j, ++r)
+                visitor_(idx[j], column[j]);
+            visitor_.post();
+            if (r == roll_count_)
+                result_.push_back(visitor_.get_result());
+        }
+    }
+
+    inline void pre ()  { visitor_.pre(); result_.clear(); }
+    inline void post ()  { visitor_.post(); }
+    inline const result_type &get_result () const  { return (result_); }
+};
+
+// ----------------------------------------------------------------------------
+
+// Expanding rolling adoptor for visitors
+//
+template<typename F, typename T, typename I = unsigned long>
+struct  ExpandingRollAdopter  {
+
+private:
+
+    using visitor_type = F;
+    using f_result_type = typename visitor_type::result_type;
+
+    visitor_type                visitor_ { };
+    const size_t                init_roll_count_ { 0 };
+    const size_t                increment_count_ { 0 };
+    std::vector<f_result_type>  result_ { };
+
+public:
+
+    DEFINE_VISIT_BASIC_TYPES
+    using result_type = std::vector<f_result_type>;
+
+    inline ExpandingRollAdopter(F &&functor,
+                                size_t r_count,
+                                size_t i_count = 1)
+        : visitor_(std::move(functor)),
+          init_roll_count_(r_count),
+          increment_count_(i_count)  {   }
+
+    template <typename K, typename H>
+    inline void
+    operator() (const K &idx, const H &column)  {
+
+        if (init_roll_count_ == 0)  return;
+
         const size_t    col_s = std::min(idx.size(), column.size());
 
         result_.reserve(col_s);
 
-        for (size_t i = 0; i < roll_count_ - 1 && i < col_s; ++i)
+        size_t  rc = init_roll_count_;
+
+        for (size_t i = 0; i < rc - 1 && i < col_s; ++i)
             result_.push_back(std::numeric_limits<f_result_type>::quiet_NaN());
-        for (size_t i = 0; i < col_s; ++i)  {
+
+        for (size_t i = 0; i < col_s; ++i, rc += increment_count_)  {
             size_t  r = 0;
 
             visitor_.pre();
-            for (size_t j = i; r < roll_count_ && j < col_s; ++j, ++r)
+            for (size_t j = i; r < rc && j < col_s; ++j, ++r)
                 visitor_(idx[j], column[j]);
-            if (r == roll_count_)
-                result_.push_back(visitor_.get_result());
             visitor_.post();
+            if (r == rc)
+                result_.push_back(visitor_.get_result());
+            else  break;
         }
     }
 
@@ -771,8 +835,7 @@ private:
 
 public:
 
-    using value_type = T;
-    using index_type = I;
+    DEFINE_VISIT_BASIC_TYPES
     using result_type = std::vector<f_result_type>;
 
     inline ExponentialRollAdopter(F &&functor,
@@ -831,10 +894,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct StatsVisitor  {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void operator() (const index_type &, const value_type &val)  {
 
@@ -849,10 +909,11 @@ struct StatsVisitor  {
         delta_n2 = delta_n * delta_n;
         term1 = delta * delta_n * value_type(n1);
         m1_ += delta_n;
-        m4_ += term1 * delta_n2 * value_type(n_ * n_ - 3 * n_ + 3) +
-               6.0 * delta_n2 * m2_ -
-               4.0 * delta_n * m3_;
-        m3_ += term1 * delta_n * value_type(n_ - 2) - 3.0 * delta_n * m2_;
+        m4_ = m4_ + static_cast<value_type>
+                     (term1 * delta_n2 * value_type(n_ * n_ - 3 * n_ + 3) +
+                   6.0 * delta_n2 * m2_ - 4.0 * delta_n * m3_);
+        m3_ = m3_ + static_cast<value_type>
+            (term1 * delta_n * value_type(n_ - 2) - 3.0 * delta_n * m2_);
         m2_ += term1;
     }
     inline void pre ()  {
@@ -864,16 +925,22 @@ struct StatsVisitor  {
 
     inline size_type get_count () const { return (n_); }
     inline result_type get_mean () const  { return (m1_); }
-    inline result_type
-    get_variance () const  { return (m2_ / (value_type(n_) - 1.0)); }
-    inline result_type get_std () const  { return (::sqrt(get_variance())); }
+    inline result_type get_variance () const  {
+
+        return static_cast<result_type>(m2_ / (value_type(n_) - 1.0));
+    }
+    inline result_type get_std () const  {
+
+        return static_cast<result_type>(::sqrt(get_variance()));
+    }
     inline result_type get_skew () const  {
 
-        return (::sqrt(n_) * m3_ / ::pow(m2_, 1.5));
+        return static_cast<result_type>(::sqrt(n_) * m3_ / ::pow(m2_, 1.5));
     }
     inline result_type get_kurtosis () const  {
 
-        return (value_type(n_) * m4_ / (m2_ * m2_) - 3.0);
+        return static_cast<result_type>
+            (value_type(n_) * m4_ / (m2_ * m2_) - 3.0);
     }
 
     explicit StatsVisitor(bool skipnan = true) : skip_nan_(skipnan)  {   }
@@ -900,10 +967,7 @@ struct SLRegressionVisitor  {
 
 public:
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void operator() (const index_type &idx,
                             const value_type &x,
@@ -976,10 +1040,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct CumSumVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = std::vector<value_type>;
+    DEFINE_VISIT_BASIC_TYPES_3
 
     template <typename K, typename H>
     inline void
@@ -1018,10 +1079,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct CumProdVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = std::vector<value_type>;
+    DEFINE_VISIT_BASIC_TYPES_3
 
     template <typename K, typename H>
     inline void
@@ -1057,10 +1115,7 @@ private:
 template<typename T, typename I = unsigned long>
 struct CumMaxVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = std::vector<value_type>;
+    DEFINE_VISIT_BASIC_TYPES_3
 
     template <typename K, typename H>
     inline void
@@ -1099,10 +1154,7 @@ private:
 template<typename T, typename I = unsigned long>
 struct CumMinVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = std::vector<value_type>;
+    DEFINE_VISIT_BASIC_TYPES_3
 
     template <typename K, typename H>
     inline void
@@ -1138,6 +1190,181 @@ private:
 
 // ----------------------------------------------------------------------------
 
+// This categorizes the values in the column with integer values starting
+// from 0
+//
+template<typename T, typename I = unsigned long>
+struct CategoryVisitor  {
+
+private:
+
+    struct t_less_  {
+        inline bool
+        operator() (const T *lhs, const T *rhs) const  { return (*lhs < *rhs); }
+    };
+
+public:
+
+    DEFINE_VISIT_BASIC_TYPES
+    using result_type = std::vector<size_type>;
+
+    template <typename K, typename H>
+    inline void
+    operator() (const K &idx, const H &column)  {
+
+        const size_type c_len = column.size();
+
+        result_.reserve(c_len);
+
+        size_type   cat = nan_ != 0 ? 0 : 1;
+
+        for (size_type i = 0; i < c_len; ++i)  {
+            if (is_nan__(column[i]))  {
+                result_.push_back(nan_);
+                continue;
+            }
+
+            const typename map_type::const_iterator citer =
+                cat_map_.find(&(column[i]));
+
+            if (citer == cat_map_.end())  {
+                cat_map_.insert({ &(column[i]), cat });
+                result_.push_back(cat);
+                cat += 1;
+                if (cat == nan_)  cat += 1;
+            }
+            else
+                result_.push_back(citer->second);
+        }
+    }
+
+    explicit
+    CategoryVisitor(size_type nan_val = size_type(-1)) : nan_(nan_val)  {   }
+
+    inline void pre ()  { result_.clear(); cat_map_.clear(); }
+    inline void post ()  {  }
+    inline const result_type &get_result () const  { return (result_); }
+
+private:
+
+    using map_type = std::map<const T *, size_type, t_less_>;
+
+    map_type        cat_map_ { };
+    result_type     result_ { };
+    const size_type nan_;
+};
+
+// ----------------------------------------------------------------------------
+
+// This ranks the values in the column based on rank policy starting from 0.
+//
+template<typename T, typename I = unsigned long>
+struct RankVisitor  {
+
+public:
+
+    DEFINE_VISIT_BASIC_TYPES
+    using result_type = std::vector<double>;
+
+    template <typename K, typename H>
+    inline void
+    operator() (const K &idx, const H &column)  {
+
+        const size_type         c_len = column.size();
+        std::vector<size_type>  rank_vec(c_len);
+
+        std::iota(rank_vec.begin(), rank_vec.end(), 0);
+        std::stable_sort(rank_vec.begin(), rank_vec.end(),
+                         [&column](size_type lhs, size_type rhs) -> bool {
+                             return (column[lhs] < column[rhs]);
+                         });
+        result_.resize(c_len);
+
+        const value_type    *prev_value = &(column[rank_vec[0]]);
+
+        for (size_type i = 0; i < c_len; ++i)  {
+            double      avg_val = static_cast<double>(i);
+            double      first_val = static_cast<double>(i);
+            double      last_val = static_cast<double>(i);
+            size_type   j = i + 1;
+
+            for ( ; j < c_len && *prev_value == column[rank_vec[j]]; ++j)  {
+                last_val = static_cast<double>(j);
+                avg_val += static_cast<double>(j);
+            }
+            avg_val /= double(j - i);
+            for (; i < c_len && i < j; ++i)   {
+                switch(policy_)  {
+                case rank_policy::average:
+                    result_[rank_vec[i]] = avg_val;
+                    break;
+                case rank_policy::first:
+                    result_[rank_vec[i]] = first_val;
+                    break;
+                case rank_policy::last:
+                    result_[rank_vec[i]] = last_val;
+                    break;
+                case rank_policy::actual:
+                    result_[rank_vec[i]] = static_cast<double>(i);
+                    break;
+                }
+            }
+            prev_value = &(column[rank_vec[i]]);
+            i -= 1;  // Because the outer loop does ++i
+        }
+    }
+
+    explicit
+    RankVisitor(rank_policy p = rank_policy::actual) : policy_(p)  {   }
+
+    inline void pre ()  { result_.clear(); }
+    inline void post ()  {  }
+    inline const result_type &get_result () const  { return (result_); }
+
+private:
+
+    const rank_policy   policy_;
+    result_type         result_ { };
+};
+
+// ----------------------------------------------------------------------------
+
+// It factorizes the given column into a vector of Booleans based on the
+// result of the given function.
+//
+template<typename T, typename I = unsigned long>
+struct FactorizeVisitor  {
+
+    DEFINE_VISIT_BASIC_TYPES
+    using result_type = std::vector<bool>;
+    using factor_func = std::function<bool(const value_type &val)>;
+
+    template <typename K, typename H>
+    inline void
+    operator() (const K &idx, const H &column)  {
+
+        result_.reserve(column.size());
+
+        for (auto citer : column)
+            result_.push_back(ffunc_(citer));
+    }
+
+    explicit FactorizeVisitor(factor_func f) : ffunc_(f)  {   }
+
+    inline void pre ()  { result_.clear(); }
+    inline void post ()  {  }
+    inline const result_type &get_result () const  { return (result_); }
+
+private:
+
+    result_type result_ { };
+    factor_func ffunc_;
+};
+
+// ----------------------------------------------------------------------------
+
+// Simple rolling adoptor for visitors
+//
 template<typename T,
          typename I = unsigned long,
          typename =
@@ -1146,10 +1373,7 @@ struct AutoCorrVisitor  {
 
 public:
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = std::vector<value_type>;
+    DEFINE_VISIT_BASIC_TYPES_3
 
     AutoCorrVisitor () = default;
     template <typename K, typename H>
@@ -1162,13 +1386,14 @@ public:
 
         std::vector<value_type>               tmp_result(col_len - 4);
         size_type                             lag = 1;
-        std::vector<std::future<CorrResult>>  futures(
-            ThreadGranularity::get_thread_level());
+        const size_type                       thread_level =
+            ThreadGranularity::get_sensible_thread_level();
+        std::vector<std::future<CorrResult>>  futures(thread_level);
         size_type                             thread_count = 0;
 
         tmp_result[0] = 1.0;
         while (lag < col_len - 4)  {
-            if (thread_count >= ThreadGranularity::get_thread_level())  {
+            if (thread_count >= thread_level)  {
                 const auto  result = get_auto_corr_(col_len, lag, column);
 
                 tmp_result[result.first] = result.second;
@@ -1227,20 +1452,18 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct ReturnVisitor  {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = std::vector<value_type>;
+    DEFINE_VISIT_BASIC_TYPES_3
 
     explicit ReturnVisitor (return_policy rp) : ret_p_(rp)  {   }
-    inline void operator() (const std::vector<index_type> &idx,
-                            const std::vector<value_type> &column)  {
+
+    template <typename K, typename H>
+    inline void operator() (const K &idx, const H &column)  {
 
         const size_type col_len = std::min(idx.size(), column.size());
 
         if (col_len < 3)  return;
 
-        std::vector<value_type> tmp_result;
+        result_type tmp_result;
 
         tmp_result.reserve(col_len);
 
@@ -1256,9 +1479,9 @@ struct ReturnVisitor  {
         }
         else if (ret_p_ == return_policy::percentage)  {
             auto    func =
-            [](value_type lhs, value_type rhs) -> value_type  {
-                return ((lhs - rhs) / rhs);
-            };
+                [](value_type lhs, value_type rhs) -> value_type  {
+                    return ((lhs - rhs) / rhs);
+                };
 
             std::adjacent_difference (column.begin(), column.end(),
                                       std::back_inserter (tmp_result),
@@ -1266,9 +1489,9 @@ struct ReturnVisitor  {
         }
         else if (ret_p_ == return_policy::monetary)  {
             auto    func =
-            [](value_type lhs, value_type rhs) -> value_type  {
-                return (lhs - rhs);
-            };
+                [](value_type lhs, value_type rhs) -> value_type  {
+                    return (lhs - rhs);
+                };
 
             std::adjacent_difference (column.begin(), column.end(),
                                       std::back_inserter (tmp_result),
@@ -1295,10 +1518,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct KthValueVisitor  {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     explicit KthValueVisitor (size_type ke, bool skipnan = true)
         : kth_element_(ke), skip_nan_(skipnan)  {   }
@@ -1374,10 +1594,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct MedianVisitor  {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = T;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     MedianVisitor () = default;
     template <typename K, typename H>
@@ -1412,6 +1629,107 @@ private:
 
 // ----------------------------------------------------------------------------
 
+template<typename T,
+         typename I = unsigned long,
+         typename =
+             typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
+struct QuantileVisitor  {
+
+    DEFINE_VISIT_BASIC_TYPES_2
+
+    QuantileVisitor () = default;
+    QuantileVisitor (value_type quantile, quantile_policy q_policy)
+        : qt_(quantile), policy_(q_policy)  {   }
+
+    template <typename K, typename H>
+    inline void
+    operator() (const K &idx, const H &column)  {
+
+        const size_type vec_len = column.size();
+
+        if (qt_ < 0.0 || qt_ > 1.0 || vec_len == 0)  {
+            char buffer [512];
+
+            sprintf (buffer,
+                     "QuantileVisitor{}: unable to do quantile: "
+#ifdef _WIN32
+                     "qt: %f, Column Len: %zu",
+#else
+                     "qt: %f, Column Len: %lu",
+#endif // _WIN32
+                     qt_, vec_len);
+            throw NotFeasible(buffer);
+        }
+
+        const double    vec_len_frac = qt_ * vec_len;
+        const size_type int_idx =
+            static_cast<size_type>(std::round(vec_len_frac));
+        const bool      need_two =
+            ! (vec_len & 0x01) || double(int_idx) < vec_len_frac;
+
+        if (qt_ == 0.0)  {
+            KthValueVisitor<T, I>   kth_value(1);
+
+            kth_value.pre();
+            kth_value(idx, column);
+            kth_value.post();
+            result_ = kth_value.get_result();
+        }
+        else if (qt_ == 1.0)  {
+            KthValueVisitor<T, I>   kth_value(vec_len);
+
+            kth_value.pre();
+            kth_value(idx, column);
+            kth_value.post();
+            result_ = kth_value.get_result();
+        }
+        else if (policy_ == quantile_policy::mid_point ||
+                 policy_ == quantile_policy::linear)  {
+            KthValueVisitor<T, I>   kth_value1(int_idx);
+
+            kth_value1.pre();
+            kth_value1(idx, column);
+            kth_value1.post();
+            result_ = kth_value1.get_result();
+            if (need_two && int_idx + 1 < vec_len)  {
+                KthValueVisitor<T, I>   kth_value2(int_idx + 1);
+
+                kth_value2.pre();
+                kth_value2(idx, column);
+                kth_value2.post();
+                if (policy_ == quantile_policy::mid_point)
+                    result_ = (result_ + kth_value2.get_result()) / 2.0;
+                else // linear
+                    result_ = result_ + (kth_value2.get_result() - result_) *
+                              (1.0 - qt_);
+            }
+        }
+        else if (policy_ == quantile_policy::lower_value ||
+                 policy_ == quantile_policy::higher_value)  {
+            KthValueVisitor<T, I>   kth_value(
+                policy_ == quantile_policy::lower_value ? int_idx
+                : (int_idx + 1 < vec_len && need_two ? int_idx + 1 : int_idx));
+
+            kth_value.pre();
+            kth_value(idx, column);
+            kth_value.post();
+            result_ = kth_value.get_result();
+        }
+    }
+
+    inline void pre ()  { result_ = value_type(); }
+    inline void post ()  {   }
+    inline result_type get_result () const  { return (result_); }
+
+private:
+
+    result_type             result_ {  };
+    const result_type       qt_ { 0.5  };
+    const quantile_policy   policy_ { quantile_policy::mid_point };
+};
+
+// ----------------------------------------------------------------------------
+
 // Mode of a vector is a value that appears most often in the vector.
 // This visitor extracts the top N repeated values in the column with the
 // associated indices.
@@ -1421,9 +1739,7 @@ private:
 template<std::size_t N, typename T, typename I = unsigned long>
 struct  ModeVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
+    DEFINE_VISIT_BASIC_TYPES
 
     struct  DataItem  {
         // Value of the column item
@@ -1550,16 +1866,166 @@ private:
 
 // ----------------------------------------------------------------------------
 
+// This calculates 4 different form of Mean Absolute Deviation based on the
+// requested type input. Please the mad_type enum type
+//
+template<typename T,
+         typename I = unsigned long,
+         typename =
+             typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
+struct MADVisitor  {
+
+private:
+
+    const mad_type  mad_type_;
+    const bool      skip_nan_;
+
+    template <typename K, typename H>
+    inline void
+    calc_mean_abs_dev_around_mean_(const K &idx, const H &column)  {
+
+        const std::size_t   col_s = std::min(idx.size(), column.size());
+        MeanVisitor<T, I>   mean_visitor(skip_nan_);
+
+        mean_visitor.pre();
+        for (std::size_t i = 0; i < col_s; ++i)
+            mean_visitor(idx[i], column[i]);
+        mean_visitor.post();
+
+        MeanVisitor<T, I>   mean_mean_visitor(skip_nan_);
+
+        mean_mean_visitor.pre();
+        for (std::size_t i = 0; i < col_s; ++i)  {
+            if (skip_nan_ && is_nan__(column[i]))  continue;
+            mean_mean_visitor(idx[i],
+                              std::fabs(column[i] - mean_visitor.get_result()));
+        }
+        mean_mean_visitor.post();
+
+        result_ = mean_mean_visitor.get_result();
+    }
+
+    template <typename K, typename H>
+    inline void
+    calc_mean_abs_dev_around_median_(const K &idx, const H &column)  {
+
+        MedianVisitor<T, I> median_visitor;
+
+        median_visitor.pre();
+        median_visitor(idx, column);
+        median_visitor.post();
+
+        const std::size_t   col_s = std::min(idx.size(), column.size());
+        MeanVisitor<T, I>   mean_median_visitor(skip_nan_);
+
+        mean_median_visitor.pre();
+        for (std::size_t i = 0; i < col_s; ++i)  {
+            if (skip_nan_ && is_nan__(column[i]))  continue;
+            mean_median_visitor(
+                idx[i],
+                std::fabs(column[i] - median_visitor.get_result()));
+        }
+        mean_median_visitor.post();
+
+        result_ = mean_median_visitor.get_result();
+    }
+
+    template <typename K, typename H>
+    inline void
+    calc_median_abs_dev_around_mean_(const K &idx, const H &column)  {
+
+        MeanVisitor<T, I>   mean_visitor(skip_nan_);
+        const std::size_t   col_s = std::min(idx.size(), column.size());
+
+        mean_visitor.pre();
+        for (std::size_t i = 0; i < col_s; ++i)
+            mean_visitor(idx[i], column[i]);
+        mean_visitor.post();
+
+        MedianVisitor<T, I> median_mean_visitor;
+        std::vector<T>      mean_dists;
+
+        mean_dists.reserve(col_s);
+        for (std::size_t i = 0; i < col_s; ++i)
+            mean_dists.push_back(
+                std::fabs(column[i] - mean_visitor.get_result()));
+        median_mean_visitor.pre();
+        median_mean_visitor(idx, mean_dists);
+        median_mean_visitor.post();
+
+        result_ = median_mean_visitor.get_result();
+    }
+
+    template <typename K, typename H>
+    inline void
+    calc_median_abs_dev_around_median_(const K &idx, const H &column)  {
+
+        MedianVisitor<T, I> median_visitor;
+
+        median_visitor.pre();
+        median_visitor(idx, column);
+        median_visitor.post();
+
+        const std::size_t   col_s = std::min(idx.size(), column.size());
+        MedianVisitor<T, I> median_median_visitor;
+        std::vector<T>      median_dists;
+
+        median_dists.reserve(col_s);
+        for (std::size_t i = 0; i < col_s; ++i)
+            median_dists.push_back(
+                std::fabs(column[i] - median_visitor.get_result()));
+        median_median_visitor.pre();
+        median_median_visitor(idx, median_dists);
+        median_median_visitor.post();
+
+        result_ = median_median_visitor.get_result();
+    }
+
+public:
+
+    DEFINE_VISIT_BASIC_TYPES_2
+
+    MADVisitor (mad_type mt, bool skip_nan = true)
+        : mad_type_(mt), skip_nan_(skip_nan)  {   }
+    template <typename K, typename H>
+    inline void
+    operator() (const K &idx, const H &column)  {
+
+        switch (mad_type_)  {
+            case mad_type::mean_abs_dev_around_mean:
+                calc_mean_abs_dev_around_mean_(idx, column);
+                break;
+            case mad_type::mean_abs_dev_around_median:
+                calc_mean_abs_dev_around_median_(idx, column);
+                break;
+            case mad_type::median_abs_dev_around_mean:
+                calc_median_abs_dev_around_mean_(idx, column);
+                break;
+            case mad_type::median_abs_dev_around_median:
+                calc_median_abs_dev_around_median_(idx, column);
+                break;
+            default:
+                break;
+        }
+    }
+    inline void pre ()  { result_ = value_type(); }
+    inline void post ()  {   }
+    inline result_type get_result () const  { return (result_); }
+
+private:
+
+    result_type result_ {  };
+};
+
+// ----------------------------------------------------------------------------
+
 template<typename T,
          typename I = unsigned long,
          typename =
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct DiffVisitor  {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = std::vector<value_type>;
+    DEFINE_VISIT_BASIC_TYPES_3
 
     explicit DiffVisitor(long periods = 1, bool skipnan = true)
         : periods_(periods), skip_nan_(skipnan) {  }
@@ -1588,8 +2054,9 @@ struct DiffVisitor  {
                       j = column.rbegin();
                  i < column.rend(); ++i, ++j) {
                 if (skip_nan_ && (is_nan__(*i) || is_nan__(*j)))  continue;
-                result_.insert(result_.begin(), (*i - *j));
+                result_.push_back(*i - *j);
             }
+            std::reverse(result_.begin(), result_.end());
 
             if (skip_nan_ )  return;
             for (size_type i = 0;
@@ -1619,10 +2086,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct ZScoreVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = std::vector<value_type>;
+    DEFINE_VISIT_BASIC_TYPES_3
 
     template <typename K, typename H>
     inline void
@@ -1659,8 +2123,8 @@ struct ZScoreVisitor {
 
 private:
 
-    std::vector<value_type> zscore_ {  };
-    const bool              skip_nan_ { };
+    result_type zscore_ {  };
+    const bool  skip_nan_ { };
 };
 
 // ----------------------------------------------------------------------------
@@ -1671,10 +2135,7 @@ template<typename T,
              typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
 struct SampleZScoreVisitor {
 
-    using value_type = T;
-    using index_type = I;
-    using size_type = std::size_t;
-    using result_type = value_type;
+    DEFINE_VISIT_BASIC_TYPES_2
 
     inline void
     operator() (const std::vector<index_type> &idx,
@@ -1722,6 +2183,102 @@ private:
 
     value_type  zscore_ {  };
     const bool  skip_nan_ { };
+};
+
+// ----------------------------------------------------------------------------
+
+template<typename T,
+         typename I = unsigned long,
+         typename =
+             typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
+struct SigmiodVisitor {
+
+    DEFINE_VISIT_BASIC_TYPES_3
+
+private:
+
+    template <typename H>
+    inline void logistic_(const H &column)  {
+
+        for (auto citer : column)
+            sigmiods_.push_back(1.0 / (1.0 + std::exp(-citer)));
+    }
+    template <typename H>
+    inline void algebraic_(const H &column)  {
+
+        for (auto citer : column)
+            sigmiods_.push_back(1.0 / std::sqrt(1.0 + std::pow(citer, 2.0)));
+    }
+    template <typename H>
+    inline void hyperbolic_tan_(const H &column)  {
+
+        for (auto citer : column)
+            sigmiods_.push_back(std::tanh(citer));
+    }
+    template <typename H>
+    inline void arc_tan_(const H &column)  {
+
+        for (auto citer : column)
+            sigmiods_.push_back(std::atan(citer));
+    }
+    template <typename H>
+    inline void error_function_(const H &column)  {
+
+        for (auto citer : column)
+            sigmiods_.push_back(std::erf(citer));
+    }
+    template <typename H>
+    inline void gudermannian_(const H &column)  {
+
+        for (auto citer : column)
+            sigmiods_.push_back(std::atan(std::sinh(citer)));
+    }
+    template <typename H>
+    inline void smoothstep_(const H &column)  {
+
+        for (auto citer : column)  {
+            if (citer <= 0.0)
+                sigmiods_.push_back(0.0);
+            else if (citer >= 1.0)
+                sigmiods_.push_back(1.0);
+            else
+                sigmiods_.push_back(citer * citer * (3.0 - 2.0 * citer));
+        }
+    }
+
+public:
+
+    template <typename K, typename H>
+    inline void
+    operator() (const K &idx, const H &col)  {
+
+        sigmiods_.reserve(col.size());
+        if (sigmiod_type_ == sigmiod_type::logistic)
+            logistic_(col);
+        else if (sigmiod_type_ == sigmiod_type::algebraic)
+            algebraic_(col);
+        else if (sigmiod_type_ == sigmiod_type::hyperbolic_tan)
+            hyperbolic_tan_(col);
+        else if (sigmiod_type_ == sigmiod_type::arc_tan)
+            arc_tan_(col);
+        else if (sigmiod_type_ == sigmiod_type::error_function)
+            error_function_(col);
+        else if (sigmiod_type_ == sigmiod_type::gudermannian)
+            gudermannian_(col);
+        else if (sigmiod_type_ == sigmiod_type::smoothstep)
+            smoothstep_(col);
+    }
+    inline void pre ()  { sigmiods_.clear(); }
+    inline void post ()  {  }
+    inline const result_type &get_result () const  { return (sigmiods_); }
+    inline result_type &get_result ()  { return (sigmiods_); }
+
+    explicit SigmiodVisitor(sigmiod_type st) : sigmiod_type_(st)  {   }
+
+private:
+
+    result_type         sigmiods_ {  };
+    const sigmiod_type  sigmiod_type_;
 };
 
 // ----------------------------------------------------------------------------

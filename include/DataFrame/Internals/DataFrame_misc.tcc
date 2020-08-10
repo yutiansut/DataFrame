@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -38,17 +38,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace hmdf
 {
-
-#if defined(WIN32) || defined(_WIN32)
-#  ifdef min
-#    undef min
-#  endif // min
-#  ifdef max
-#    undef max
-#  endif // max
-#endif // WIN32 || _WIN32
-
-// ----------------------------------------------------------------------------
 
 template<typename I, typename H>
 template<typename ... Ts>
@@ -70,7 +59,14 @@ template<typename T>
 void
 DataFrame<I, H>::shrink_to_fit_functor_<Ts ...>::operator() (T &vec) const  {
 
+    using value_type = typename T::value_type;
+
     vec.shrink_to_fit();
+
+    const size_type s = vec.capacity() * sizeof(value_type);
+
+    if (s && ! (s & (s - 1)))  // Avoid cache line aliasing misses
+        vec.reserve(vec.size() + 1);  // Knock it off the power of 2
 }
 
 // ----------------------------------------------------------------------------
@@ -89,16 +85,34 @@ DataFrame<I, H>::sort_functor_<Ts ...>::operator() (T2 &vec)  {
 // ----------------------------------------------------------------------------
 
 template<typename I, typename H>
-template<typename ... Ts>
+template<typename LHS, typename ... Ts>
 template<typename T>
 void
-DataFrame<I, H>::load_functor_<Ts ...>::operator() (const T &vec)  {
+DataFrame<I, H>::load_functor_<LHS, Ts ...>::operator() (const T &vec)  {
 
     using VecType = typename std::remove_reference<T>::type;
     using ValueType = typename VecType::value_type;
 
-    df.load_column<ValueType>(name,
-                              { vec.begin() + begin, vec.begin() + end },
+    const size_type col_s = vec.size() >= end ? end : vec.size();
+
+    df.template load_column<ValueType>(
+        name,
+        { vec.begin() + begin, vec.begin() + col_s },
+        nan_p);
+}
+
+// ----------------------------------------------------------------------------
+
+template<typename I, typename H>
+template<typename ... Ts>
+template<typename T>
+void
+DataFrame<I, H>::load_all_functor_<Ts ...>::operator() (const T &vec)  {
+
+    using VecType = typename std::remove_reference<T>::type;
+    using ValueType = typename VecType::value_type;
+
+    df.load_column<ValueType>(name, { vec.begin(), vec.end() },
                               nan_policy::pad_with_nans);
     return;
 }
@@ -118,18 +132,20 @@ DataFrame<I, H>::remove_functor_<Ts ...>::operator() (T &vec)  {
 // ----------------------------------------------------------------------------
 
 template<typename I, typename H>
-template<typename ... Ts>
+template<typename LHS, typename ... Ts>
 template<typename T>
 void
-DataFrame<I, H>::view_setup_functor_<Ts ...>::
+DataFrame<I, H>::view_setup_functor_<LHS, Ts ...>::
 operator() (T &vec)  {
 
     using VecType = typename std::remove_reference<T>::type;
     using ValueType = typename VecType::value_type;
 
+    const size_type col_s = vec.size() >= end ? end : vec.size();
+
     dfv.template setup_view_column_<ValueType, typename VecType::iterator>(
         name,
-        { vec.begin() + begin, vec.begin() + end });
+        { vec.begin() + begin, vec.begin() + col_s });
     return;
 }
 
@@ -477,6 +493,28 @@ operator()(const std::vector<T> &vec)  {
 // ----------------------------------------------------------------------------
 
 template<typename I, typename H>
+template<typename RES_T, typename ... Ts>
+template<typename T>
+void DataFrame<I, H>::concat_functor_<RES_T, Ts ...>::
+operator()(const std::vector<T> &vec)  {
+
+    if (insert_col)  {
+        std::vector<T>  res_vec(original_index_s + vec.size(),
+                                DataFrame::_get_nan<T>());
+
+        std::copy(vec.begin(), vec.end(), res_vec.begin() + original_index_s);
+        result.load_column(name, res_vec);
+    }
+    else  {
+        std::vector<T>  &res_vec = result.template get_column<T>(name);
+
+        res_vec.insert(res_vec.end(), vec.begin(), vec.end());
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+template<typename I, typename H>
 template<typename ... Ts>
 template<typename T>
 void DataFrame<I, H>::vertical_shift_functor_<Ts ...>::
@@ -683,7 +721,7 @@ operator() (std::vector<T> &vec) const  {
 
     for (size_type i = 0; i < sel_indices_s; ++i)
         if (sel_indices[i] < vec_s)
-            vec.erase(vec.begin() + sel_indices[i] - del_count++);
+            vec.erase(vec.begin() + (sel_indices[i] - del_count++));
         else
             break;
     return;
@@ -777,6 +815,21 @@ random_load_view_functor_<Ts ...>::operator() (const T &vec)  {
     guard.release();
     dfv.column_tb_.emplace (name, dfv.data_.size() - 1);
     return;
+}
+
+// ----------------------------------------------------------------------------
+
+template<typename I, typename H>
+template<typename ... Ts>
+template<typename T>
+void
+DataFrame<I, H>::
+columns_info_functor_<Ts ...>::operator() (const T &vec)  {
+
+    using VecType = typename std::remove_reference<T>::type;
+    using ValueType = typename VecType::value_type;
+
+    result.emplace_back(name, vec.size(), std::type_index(typeid(ValueType)));
 }
 
 } // namespace hmdf

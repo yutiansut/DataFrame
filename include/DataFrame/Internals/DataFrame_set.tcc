@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -35,17 +35,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace hmdf
 {
-
-#if defined(WIN32) || defined(_WIN32)
-#  ifdef min
-#    undef min
-#  endif // min
-#  ifdef max
-#    undef max
-#  endif // max
-#endif // WIN32 || _WIN32
-
-// ----------------------------------------------------------------------------
 
 template<typename I, typename  H>
 template<typename T>
@@ -131,6 +120,32 @@ void DataFrame<I, H>::rename_column (const char *from, const char *to)  {
 // ----------------------------------------------------------------------------
 
 template<typename I, typename  H>
+template<typename FROM_T, typename TO_T>
+void DataFrame<I, H>::
+retype_column (const char *name,
+               std::function<TO_T (const FROM_T &)> convert_func)  {
+
+    static_assert(std::is_base_of<HeteroVector, DataVec>::value,
+                  "Only a StdDataFrame can call retype_column()");
+
+    if (! ::strcmp(name, DF_INDEX_COL_NAME))
+        throw DataFrameError ("DataFrame::retype_column(): ERROR: "
+                              "Data column name cannot be 'INDEX'");
+
+    const std::vector<FROM_T>   &old_vec = get_column<FROM_T>(name);
+    std::vector<TO_T>           new_vec;
+
+    new_vec.reserve(old_vec.size());
+    for (const auto &citer : old_vec)
+        new_vec.push_back(std::move(convert_func(citer)));
+    remove_column(name);
+    load_column<TO_T>(name, std::move(new_vec));
+    return;
+}
+
+// ----------------------------------------------------------------------------
+
+template<typename I, typename  H>
 template<typename ... Ts>
 typename DataFrame<I, H>::size_type
 DataFrame<I, H>::load_data (IndexVecType &&indices, Ts&& ... args)  {
@@ -162,12 +177,9 @@ DataFrame<I, H>::load_index(const ITR &begin, const ITR &end)  {
     static_assert(std::is_base_of<HeteroVector, DataVec>::value,
                   "Only a StdDataFrame can call load_index()");
 
-    const size_type s = std::distance(begin, end);
-
-    indices_.clear ();
-    indices_.reserve (s);
-    indices_.insert (indices_.begin (), begin, end);
-    return (s);
+    indices_.clear();
+    indices_.insert (indices_.end(), begin, end);
+    return (indices_.size());
 }
 
 // ----------------------------------------------------------------------------
@@ -271,8 +283,7 @@ DataFrame<I, H>::append_index(Index2D<const ITR &> range)  {
 
     const size_type s = std::distance(range.begin, range.end);
 
-    indices_.reserve (indices_.size() + s);
-    indices_.insert (indices_.end (), range.begin, range.end);
+    indices_.insert(indices_.end(), range.begin, range.end);
     return (s);
 }
 
@@ -328,8 +339,7 @@ load_column (const char *name,
     }
 
     vec_ptr->clear();
-    vec_ptr->reserve(idx_s);
-    vec_ptr->insert (vec_ptr->begin (), range.begin, range.end);
+    vec_ptr->insert (vec_ptr->end(), range.begin, range.end);
 
     size_type   ret_cnt = s;
 
@@ -356,7 +366,10 @@ setup_view_column_ (const char *name, Index2D<ITR> range)  {
                   "Only a DataFrameView or DataFramePtrView can "
                   "call setup_view_column_()");
 
-    data_.emplace_back (DataVec(&*(range.begin), &*(range.end)));
+    DataVec dv;
+
+    dv.set_begin_end_special(&*(range.begin), &*(range.end - 1));
+    data_.emplace_back (dv);
     column_tb_.emplace (name, data_.size() - 1);
 
     return;
@@ -417,6 +430,63 @@ template<typename I, typename  H>
 template<typename T>
 typename DataFrame<I, H>::size_type
 DataFrame<I, H>::
+load_align_column(
+    const char *name,
+    std::vector<T> &&data,
+    size_type interval,
+    bool start_from_beginning,
+    const T &null_value,
+    std::function<DataFrame::size_type(
+                        const DataFrame::IndexType &,
+                        const DataFrame::IndexType &)> diff_func)  {
+
+    const size_type idx_s = indices_.size();
+    const size_type data_s = data.size();
+
+    if (data_s > idx_s || data_s == 0)  {
+        char buffer [512];
+
+        sprintf (buffer, "DataFrame::load_align_column(): ERROR: "
+#ifdef _WIN32
+                         "data size of %zu is larger than index size of %zu",
+#else
+                         "data size of %lu is larger than index size of %lu",
+#endif // _WIN32
+                 data_s, idx_s);
+        throw InconsistentData (buffer);
+    }
+
+    std::vector<T>  new_col(idx_s, null_value);
+    size_type       idx_idx { 0 };
+
+    if (start_from_beginning)  {
+        new_col[0] = std::move(data[0]);
+        idx_idx = 1;
+    }
+
+    size_type   idx_ref_idx { 0 };
+    size_type   data_idx { idx_idx };
+
+    for ( ; data_idx < data_s && idx_idx < idx_s; ++idx_idx)  {
+        const size_type idx_diff =
+            diff_func(indices_[idx_ref_idx], indices_[idx_idx]);
+
+        if (idx_diff < interval)  continue;
+        new_col[idx_idx + (idx_diff > interval ? -1 : 0)] =
+            std::move(data[data_idx]);
+        idx_ref_idx = idx_idx + (idx_diff > interval ? -1 : 0);
+        data_idx += 1;
+    }
+
+    return (load_column<T>(name, std::move(new_col)));
+}
+
+// ----------------------------------------------------------------------------
+
+template<typename I, typename  H>
+template<typename T>
+typename DataFrame<I, H>::size_type
+DataFrame<I, H>::
 load_column (const char *name,
              const std::vector<T> &data,
              nan_policy padding)  {
@@ -464,7 +534,6 @@ append_column (const char *name,
         throw InconsistentData (buffer);
     }
 
-    vec.reserve (idx_s);
     vec.insert (vec.end (), range.begin, range.end);
 
     size_type   ret_cnt = s;
@@ -621,7 +690,7 @@ void DataFrame<I, H>::remove_data_by_sel (const char *name, F &sel_functor)  {
     size_type       del_count = 0;
 
     for (size_type i = 0; i < col_indices_s; ++i)
-        indices_.erase(indices_.begin() + col_indices[i] - del_count++);
+        indices_.erase(indices_.begin() + (col_indices[i] - del_count++));
 
     return;
 }
@@ -657,7 +726,7 @@ remove_data_by_sel (const char *name1, const char *name2, F &sel_functor)  {
     size_type       del_count = 0;
 
     for (size_type i = 0; i < col_indices_s; ++i)
-        indices_.erase(indices_.begin() + col_indices[i] - del_count++);
+        indices_.erase(indices_.begin() + (col_indices[i] - del_count++));
 
     return;
 }
@@ -699,7 +768,7 @@ remove_data_by_sel (const char *name1,
     size_type       del_count = 0;
 
     for (size_type i = 0; i < col_indices_s; ++i)
-        indices_.erase(indices_.begin() + col_indices[i] - del_count++);
+        indices_.erase(indices_.begin() + (col_indices[i] - del_count++));
 
     return;
 }

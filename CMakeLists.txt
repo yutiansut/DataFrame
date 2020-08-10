@@ -58,6 +58,9 @@ add_install_rpath_support(BIN_DIRS "${CMAKE_INSTALL_FULL_LIBDIR}"
                           INSTALL_NAME_DIR "${CMAKE_INSTALL_FULL_LIBDIR}"
                           USE_LINK_PATH)
 
+Include(CheckSymbolExists)
+check_symbol_exists(clock_gettime "time.h" HMDF_HAVE_CLOCK_GETTIME)
+
 # Encourage user to specify a build type (e.g. Release, Debug, etc.),
 # otherwise set it to Release.
 if(NOT CMAKE_CONFIGURATION_TYPES)
@@ -76,9 +79,6 @@ set(${LIBRARY_TARGET_NAME}_SRC
   src/Vectors/HeteroPtrView.cc
   src/Utils/ThreadGranularity.cc
   src/Utils/DateTime.cc
-  src/MMap/MMapBase.cc
-  src/MMap/MMapFile.cc
-  src/MMap/MMapSharedMem.cc
 )
 
 # List of header files.
@@ -94,6 +94,7 @@ set(${LIBRARY_TARGET_NAME}_HDR
   include/DataFrame/DataFrameStatsVisitors.h
   include/DataFrame/DataFrameMLVisitors.h
   include/DataFrame/DataFrameFinancialVisitors.h
+  include/DataFrame/DataFrameTransformVisitors.h
   include/DataFrame/DataFrameTypes.h
   include/DataFrame/RandGen.h
   include/DataFrame/DataFrameOperators.h
@@ -113,26 +114,28 @@ set(${LIBRARY_TARGET_NAME}_HDR
   include/DataFrame/Utils/ThreadGranularity.h
   include/DataFrame/Utils/DateTime.h
   include/DataFrame/Utils/FixedSizeString.h
-  include/DataFrame/MMap/FileDef.h
-  include/DataFrame/MMap/MMapBase.h
-  include/DataFrame/MMap/MMapFile.h
-  include/DataFrame/MMap/MMapSharedMem.h
-  include/DataFrame/MMap/ObjectVector.h
-  include/DataFrame/MMap/ObjectVector.tcc
 )
+
 
 # Build the library
 if (UNIX)
-  add_library(${LIBRARY_TARGET_NAME} SHARED ${${LIBRARY_TARGET_NAME}_SRC})
+  add_library(${LIBRARY_TARGET_NAME} ${${LIBRARY_TARGET_NAME}_SRC})
 endif(UNIX)
 
 if (MSVC)
-  add_definitions(-D _CRT_SECURE_NO_WARNINGS)
-  add_library(${LIBRARY_TARGET_NAME} STATIC ${${LIBRARY_TARGET_NAME}_SRC})
+  add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+  add_library(${LIBRARY_TARGET_NAME} ${${LIBRARY_TARGET_NAME}_SRC})
+
+  # If shared:
+      # At build time: LIBRARY_EXPORTS and HMDF_SHARED defined
+      # At consume time: HMDF_SHARED defined
+  # If static: no definition at build and consume time
+  add_definitions(-DLIBRARY_EXPORTS)
+  add_definitions(-DHMDF_SHARED)
 endif(MSVC)
 
 if (MINGW)
-  add_library(${LIBRARY_TARGET_NAME} STATIC ${${LIBRARY_TARGET_NAME}_SRC})
+  add_library(${LIBRARY_TARGET_NAME} ${${LIBRARY_TARGET_NAME}_SRC})
 endif()
 
 # Set two minimum target properties for the library.
@@ -154,7 +157,7 @@ target_include_directories(${LIBRARY_TARGET_NAME}
 # Specify installation targets, typology and destination folders.
 install(TARGETS ${LIBRARY_TARGET_NAME}
         EXPORT  ${PROJECT_NAME}
-        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT shlib
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT lib
         ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT lib
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT bin
 )
@@ -209,7 +212,7 @@ if (MSVC)
                               EXPORT ${PROJECT_NAME}
                               VARS_PREFIX ${PROJECT_NAME}
                               NO_CHECK_REQUIRED_COMPONENTS_MACRO)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj /wd4251")
 endif(MSVC)
 
 # Add the uninstall target
@@ -217,18 +220,18 @@ include(AddUninstallTarget)
 
 # Build the test binary
 add_executable(dataframe_tester  test/dataframe_tester.cc)
+add_executable(dataframe_tester_2  test/dataframe_tester_2.cc)
 add_executable(dataframe_performance  test/dataframe_performance.cc)
 add_executable(vectors_tester    test/vectors_tester.cc)
 add_executable(vector_ptr_view_tester test/vector_ptr_view_tester.cc)
 add_executable(date_time_tester  test/date_time_tester.cc)
-add_executable(mmfile_tester     test/mmfile_tester.cc)
-add_executable(obj_vector_tester test/obj_vector_tester.cc)
-add_executable(obj_vector_erase_tester test/obj_vector_erase_tester.cc)
-add_executable(sharedmem_tester  test/sharedmem_tester.cc)
 add_executable(gen_rand_tester  test/gen_rand_tester.cc)
 
 # Link the DataFrame library to the test binary
 target_link_libraries(dataframe_tester DataFrame)
+
+# Link the DataFrame library to the test binary
+target_link_libraries(dataframe_tester_2 DataFrame)
 
 # Link the DataFrame library to the test binary
 target_link_libraries(dataframe_performance DataFrame)
@@ -243,18 +246,6 @@ target_link_libraries(vector_ptr_view_tester DataFrame)
 target_link_libraries(date_time_tester DataFrame)
 
 # Link the DataFrame library to the test binary
-target_link_libraries(mmfile_tester DataFrame)
-
-# Link the DataFrame library to the test binary
-target_link_libraries(obj_vector_tester DataFrame)
-
-# Link the DataFrame library to the test binary
-target_link_libraries(obj_vector_erase_tester DataFrame)
-
-# Link the DataFrame library to the test binary
-target_link_libraries(sharedmem_tester DataFrame)
-
-# Link the DataFrame library to the test binary
 target_link_libraries(gen_rand_tester DataFrame)
 
 if (UNIX)
@@ -262,27 +253,21 @@ if (UNIX)
   set(THREADS_PREFER_PTHREAD_FLAG ON)
   find_package(Threads REQUIRED)
   target_link_libraries(dataframe_tester Threads::Threads)
+  target_link_libraries(dataframe_tester_2 Threads::Threads)
   target_link_libraries(dataframe_performance Threads::Threads)
   target_link_libraries(vectors_tester Threads::Threads)
   target_link_libraries(vector_ptr_view_tester Threads::Threads)
   target_link_libraries(date_time_tester Threads::Threads)
-  target_link_libraries(mmfile_tester Threads::Threads)
-  target_link_libraries(obj_vector_tester Threads::Threads)
-  target_link_libraries(obj_vector_erase_tester Threads::Threads)
-  target_link_libraries(sharedmem_tester Threads::Threads)
   target_link_libraries(gen_rand_tester Threads::Threads)
 endif (UNIX)
 
 if (UNIX AND NOT APPLE)
   target_link_libraries(dataframe_tester rt)
+  target_link_libraries(dataframe_tester_2 rt)
   target_link_libraries(dataframe_performance rt)
   target_link_libraries(vectors_tester rt)
   target_link_libraries(vector_ptr_view_tester rt)
   target_link_libraries(date_time_tester rt)
-  target_link_libraries(mmfile_tester rt)
-  target_link_libraries(obj_vector_tester rt)
-  target_link_libraries(obj_vector_erase_tester rt)
-  target_link_libraries(sharedmem_tester rt)
   target_link_libraries(gen_rand_tester rt)
 endif()
 
@@ -292,11 +277,17 @@ add_test(NAME dataframe_tester
          COMMAND dataframe_tester
          WORKING_DIRECTORY $<TARGET_FILE_DIR:dataframe_tester>)
 
-# For some unknown reason to me, this test sigfaults in AppVeyor
+# For some unknown reason to me, these tests sigfaults in AppVeyor
 #
-# add_test(NAME vectors_tester
-#          COMMAND vectors_tester
-#          WORKING_DIRECTORY $<TARGET_FILE_DIR:vectors_tester>)
+if (NOT MSVC)
+  add_test(NAME dataframe_tester_2
+           COMMAND dataframe_tester_2
+           WORKING_DIRECTORY $<TARGET_FILE_DIR:dataframe_tester_2>)
+
+  add_test(NAME vectors_tester
+           COMMAND vectors_tester
+           WORKING_DIRECTORY $<TARGET_FILE_DIR:vectors_tester>)
+endif(NOT MSVC)
 
 add_test(NAME vector_ptr_view_tester
          COMMAND vector_ptr_view_tester
@@ -305,19 +296,6 @@ add_test(NAME date_time_tester
          COMMAND date_time_tester
          WORKING_DIRECTORY $<TARGET_FILE_DIR:date_time_tester>)
 
-# For some unknown reason to me, this test hangs in Travis CI
-#
-# add_test(NAME mmfile_tester
-#          COMMAND mmfile_tester
-#          WORKING_DIRECTORY $<TARGET_FILE_DIR:mmfile_tester>)
-
-add_test(NAME obj_vector_tester
-         COMMAND obj_vector_tester
-         WORKING_DIRECTORY $<TARGET_FILE_DIR:obj_vector_tester>)
-
-add_test(NAME obj_vector_erase_tester
-         COMMAND obj_vector_erase_tester
-         WORKING_DIRECTORY $<TARGET_FILE_DIR:obj_vector_erase_tester>)
 add_test(NAME gen_rand_tester
          COMMAND gen_rand_tester
          WORKING_DIRECTORY $<TARGET_FILE_DIR:gen_rand_tester>)

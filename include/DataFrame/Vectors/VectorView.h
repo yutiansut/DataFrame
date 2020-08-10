@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -32,6 +32,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iterator>
 #include <vector>
 
+#if defined(_WIN32) && defined(HMDF_SHARED)
+#  ifdef LIBRARY_EXPORTS
+#    define LIBRARY_API __declspec(dllexport)
+#  else
+#    define LIBRARY_API __declspec(dllimport)
+#  endif // LIBRARY_EXPORTS
+#else
+#  define LIBRARY_API
+#endif // _WIN32
+
 // ----------------------------------------------------------------------------
 
 namespace hmdf
@@ -42,7 +52,7 @@ namespace hmdf
 // It also gives you STL conformant iterators.
 //
 template <typename T>
-class   VectorView  {
+class LIBRARY_API VectorView {
 
 public:
 
@@ -67,6 +77,22 @@ public:
 
     inline VectorView (value_type *bp, value_type *ep) noexcept
         : begin_ptr_(bp), end_ptr_(ep)  {   }
+
+    // The purpose of this method is for the user be able to conform to STL
+    // standards.
+    // To create a VectorView over an entire std::vector you have to do this:
+    //        VectorView(&(*v.begin()), &(*v.end()));
+    // The above second parameter is against standards and it is caught
+    // if you set the STL boundary check flag. So instead, you can do:
+    //        VectorView vv;
+    //        vv.set_begin_end_special(&(*v.begin()), &(*v.back()));
+    //
+    inline void set_begin_end_special(value_type *bp, value_type *ep_1)  {
+
+        begin_ptr_ = bp;
+        end_ptr_ = ep_1;
+        end_ptr_ += 1;
+    }
 
     inline bool empty () const noexcept  { return (begin_ptr_ == end_ptr_); }
     inline size_type size () const noexcept  {
@@ -556,6 +582,22 @@ public:
     inline
     VectorConstView (const value_type *bp, const value_type *ep) noexcept
         : begin_ptr_(bp), end_ptr_(ep)  {   }
+
+    // The purpose of this method is for the user be able to conform to STL
+    // standards.
+    // To create a VectorView over an entire std::vector you have to do this:
+    //        VectorView(&(*v.begin()), &(*v.end()));
+    // The above second parameter is against standards and it is caught
+    // if you set the STL boundary check flag. So instead, you can do:
+    //        VectorView vv;
+    //        vv.set_begin_end_special(&(*v.begin()), &(v.back()));
+    //
+    inline void set_begin_end_special(value_type *bp, value_type *ep_1)  {
+
+        begin_ptr_ = bp;
+        end_ptr_ = ep_1;
+        end_ptr_ += 1;
+    }
 
     inline bool empty () const noexcept  { return (begin_ptr_ == end_ptr_); }
     inline size_type size () const noexcept  {

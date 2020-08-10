@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -30,9 +30,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <DataFrame/Utils/DateTime.h>
 #include <DataFrame/Utils/FixedSizeString.h>
 
+#include <time.h>
+
 #ifdef _WIN32
-#  include <time.h>
-#  include <windows.h>
 #  if defined(_MSC_VER) || defined(_MSC_EXTENSIONS)
 #    define DELTA_EPOCH_IN_MICROSECS  11644473600000000Ui64
 #  else
@@ -47,6 +47,42 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace hmdf
 {
 
+#ifdef _WIN32
+const char  *DateTime::TIMEZONES_[] =
+{
+    "\"TZ=GMT\"",
+    "\"TZ=Argentina Standard Time\"",        // "America/Buenos_Aires",
+    "\"TZ=Central Standard Time\"",          // "America/Chicago",
+    "\"TZ=Pacific Standard Time\"",          // "America/Los_Angeles",
+    "\"TZ=Central Standard Time (Mexico)\"", // "America/Mexico_City",
+    "\"TZ=Eastern Standard Time\"",          // "America/New_York",
+    "\"TZ=Arabian Standard Time\"",          // "Asia/Dubai",
+    "\"TZ=China Standard Time\"",            // "Asia/Hong_Kong",
+    "\"TZ=China Standard Time\"",            // "Asia/Shanghai",
+    "\"TZ=Singapore Standard Time\"",        // "Asia/Singapore",
+    "\"TZ=Iran Standard Time\"",             // "Asia/Tehran",
+    "\"TZ=Israel Standard Time\"",           // "Asia/Tel_Aviv",
+    "\"TZ=Tokyo Standard Time\"",            // "Asia/Tokyo",
+    "\"TZ=AUS Eastern Standard Time\"",      // "Australia/Melbourne",
+    "\"TZ=GMT-10\"",                         // "Australia/NSW",
+    "\"TZ=E. South America Standard Time\"", // "Brazil/East",
+    "\"TZ=W. Europe Standard Time\"",        // "Europe/Berlin",
+    "\"TZ=GMT Standard Time\"",              // "Europe/London",
+    "\"TZ=Russian Standard Time\"",          // "Europe/Moscow",
+    "\"TZ=Romance Standard Time\"",          // "Europe/Paris",
+    "\"TZ=W. Europe Standard Time\"",        // "Europe/Rome",
+    "\"TZ=W. Europe Standard Time\"",        // "Europe/Vienna",
+    "\"TZ=W. Europe Standard Time\"",        // "Europe/Zurich",
+    "\"TZ=GMT+00\"",                         // "UTC",
+    "\"TZ=Korea Standard Time\"",            // "Asia/Seoul",
+    "\"TZ=Taipei Standard Time\"",           // "Asia/Taipei",
+    "\"TZ=W. Europe Standard Time\"",        // "Eurpoe/Sweden",
+    "\"TZ=New Zealand Standard Time\"",      // "NZ",
+    "\"TZ=Central Europe Standard Time\"",   // "Europe/Oslo",
+    "\"TZ=Central European Standard Time\"", // "Europe/Warsaw",
+    "\"TZ=Central Europe Standard Time\""    // "Europe/Budapest"
+};
+#else
 const char  *DateTime::TIMEZONES_[] =
 {
     "GMT",
@@ -81,6 +117,7 @@ const char  *DateTime::TIMEZONES_[] =
     "Europe/Warsaw",
     "Europe/Budapest"
 };
+#endif // _WIN32
 
 const DateTime::DT_initializer  DateTime::dt_init_;
 
@@ -136,16 +173,16 @@ DateTime::DateTime (DT_TIME_ZONE tz) : time_zone_(tz)  {
     tmpres -= DELTA_EPOCH_IN_MICROSECS;
 
     set_time(tmpres / 1000000UL, (tmpres % 1000000UL) * 1000000);
-#elif defined clock_gettime
+#elif defined HMDF_HAVE_CLOCK_GETTIME
     struct timespec ts;
 
-    ::clock_gettime(Clock_REALTIME, &ts);
-    set_time(ts.tv_sec, ts.tv.nsec);
+    ::clock_gettime(CLOCK_REALTIME, &ts);
+    set_time(ts.tv_sec, ts.tv_nsec);
 #else
     struct timeval  tv { };
 
     ::gettimeofday(&tv, nullptr);
-    set_time(tv.tv_sec, tv.tv_usec * 1000000);
+    set_time(tv.tv_sec, tv.tv_usec * 1000);
 #endif // _WIN32
 }
 
@@ -153,10 +190,10 @@ DateTime::DateTime (DT_TIME_ZONE tz) : time_zone_(tz)  {
 
 void DateTime::set_time(EpochType the_time, NanosecondType nanosec) noexcept {
 
-    date_ = DateType (INVALID_TIME_T_);
-    hour_ = HourType (INVALID_TIME_T_);
-    minute_ = MinuteType (INVALID_TIME_T_);
-    second_ = SecondType (INVALID_TIME_T_);
+    date_ = INVALID_DATE_;
+    hour_ = INVALID_HOUR_;
+    minute_ = INVALID_MINUTE_;
+    second_ = INVALID_SECOND_;
     week_day_ = DT_WEEKDAY::BAD_DAY;
 
     nanosecond_ = nanosec;
@@ -176,12 +213,6 @@ DateTime::DateTime (DateType d,
       minute_ (mn),
       second_ (sc),
       nanosecond_ (ns),
-
-      // Refer to the comment in the header file, as why we are assigning
-      // INVALID_TIME_T_ to time_.
-      //
-      time_ (INVALID_TIME_T_),
-      week_day_ (DT_WEEKDAY::BAD_DAY),
       time_zone_ (tz)  {
 }
 
@@ -204,9 +235,7 @@ DateTime::DateTime (DateType d,
 //  (5)  YYYY/MM/DD HH:MM:SS.MMM
 //
 DateTime::DateTime (const char *s, DT_DATE_STYLE ds, DT_TIME_ZONE tz)
-    : time_ (INVALID_TIME_T_),
-      week_day_ (DT_WEEKDAY::BAD_DAY),
-      time_zone_ (tz)  {
+    : time_zone_ (tz)  {
 
     const char  *str = s;
 
@@ -214,113 +243,65 @@ DateTime::DateTime (const char *s, DT_DATE_STYLE ds, DT_TIME_ZONE tz)
 
     if (ds == DT_DATE_STYLE::YYYYMMDD)
         *this = str;
-    else if (ds == DT_DATE_STYLE::AME_STYLE)  {
+    else  {
         const size_t    str_len = ::strlen (str);
+        int             year { 0 }, month { 0 }, day { 0 };
 
-        if (str_len == 10)  {
-            hour_ = minute_ = second_ = nanosecond_ = 0;
+        hour_ = minute_ = second_ = nanosecond_ = 0;
+        if (ds == DT_DATE_STYLE::AME_STYLE)  {
+            if (str_len == 10)  {
+                ::sscanf (str, "%d/%d/%d", &month, &day, &year);
+            }
+            else if (str_len == 13)  {
+                ::sscanf (str, "%d/%d/%d %hd", &month, &day, &year, &hour_);
+            }
+            else if (str_len == 16)  {
+                ::sscanf (str, "%d/%d/%d %hd:%hd",
+                          &month, &day, &year, &hour_, &minute_);
+            }
+            else if (str_len == 19)  {
+                ::sscanf (str, "%d/%d/%d %hd:%hd:%hd",
+                          &month, &day, &year, &hour_, &minute_, &second_);
+            }
+            else if (str_len == 23)  {
+                MillisecondType ms { 0 };
 
-            int year, month, day;
-
-            ::sscanf (str, "%d/%d/%d", &month, &day, &year);
-            date_ = year * 10000 + month * 100 + day;
+                ::sscanf (str, "%d/%d/%d %hd:%hd:%hd.%hd",
+                          &month, &day, &year, &hour_, &minute_, &second_, &ms);
+                nanosecond_ = ms * 1000000;
+            }
         }
-        else if (str_len == 13)  {
-            minute_ = second_ = nanosecond_ = 0;
+        else if (ds == DT_DATE_STYLE::EUR_STYLE)  {
+            if (str_len == 10)  {
+                ::sscanf (str, "%d/%d/%d", &year, &month, &day);
+            }
+            else if (str_len == 13)  {
+                ::sscanf (str, "%d/%d/%d %hd", &year, &month, &day, &hour_);
+            }
+            else if (str_len == 16)  {
+                ::sscanf (str, "%d/%d/%d %hd:%hd",
+                          &year, &month, &day, &hour_, &minute_);
+            }
+            else if (str_len == 19)  {
+                ::sscanf (str, "%d/%d/%d %hd:%hd:%hd",
+                          &year, &month, &day, &hour_, &minute_, &second_);
+            }
+            else if (str_len == 23)  {
+                MillisecondType ms { 0 };
 
-            int year, month, day;
-
-            ::sscanf (str, "%d/%d/%d %hd", &month, &day, &year, &hour_);
-            date_ = year * 10000 + month * 100 + day;
+                ::sscanf (str, "%d/%d/%d %hd:%hd:%hd.%hd",
+                          &year, &month, &day, &hour_, &minute_, &second_, &ms);
+                nanosecond_ = ms * 1000000;
+            }
         }
-        else if (str_len == 16)  {
-            second_ = nanosecond_ = 0;
-
-            int year, month, day;
-
-            ::sscanf (str, "%d/%d/%d %hd:%hd",
-                      &month, &day, &year, &hour_, &minute_);
-            date_ = year * 10000 + month * 100 + day;
-        }
-        else if (str_len == 19)  {
-            nanosecond_ = 0;
-
-            int year, month, day;
-
-            ::sscanf (str, "%d/%d/%d %hd:%hd:%hd",
-                      &month, &day, &year, &hour_, &minute_, &second_);
-            date_ = year * 10000 + month * 100 + day;
-        }
-        else if (str_len == 23)  {
-            int             year, month, day;
-            MillisecondType ms;
-
-            ::sscanf (str, "%d/%d/%d %hd:%hd:%hd.%hd",
-                      &month, &day, &year, &hour_, &minute_, &second_, &ms);
-            date_ = year * 10000 + month * 100 + day;
-            nanosecond_ = ms * 1000000;;
-        }
-        else  {
+        if (year == 0 && month == 0 && day == 0)  {
             String512   err;
 
-            err.printf ("DateTime::DateTime(const char *): Don't know how to "
-                        "parse '%s'", s);
+            err.printf ("DateTime::DateTime(const char *): Don't know "
+                        "how to parse '%s'", s);
             throw std::runtime_error (err.c_str ());
         }
-    }
-    else if (ds == DT_DATE_STYLE::EUR_STYLE)  {
-        const size_t    str_len = ::strlen (str);
-
-        if (str_len == 10)  {
-            hour_ = minute_ = second_ = nanosecond_ = 0;
-
-            int year, month, day;
-
-            ::sscanf (str, "%d/%d/%d", &year, &month, &day);
-            date_ = year * 10000 + month * 100 + day;
-        }
-        else if (str_len == 13)  {
-            minute_ = second_ = nanosecond_ = 0;
-
-            int year, month, day;
-
-            ::sscanf (str, "%d/%d/%d %hd", &year, &month, &day, &hour_);
-            date_ = year * 10000 + month * 100 + day;
-        }
-        else if (str_len == 16)  {
-            second_ = nanosecond_ = 0;
-
-            int year, month, day;
-
-            ::sscanf (str, "%d/%d/%d %hd:%hd",
-                      &year, &month, &day, &hour_, &minute_);
-            date_ = year * 10000 + month * 100 + day;
-        }
-        else if (str_len == 19)  {
-            nanosecond_ = 0;
-
-            int year, month, day;
-
-            ::sscanf (str, "%d/%d/%d %hd:%hd:%hd",
-                      &year, &month, &day, &hour_, &minute_, &second_);
-            date_ = year * 10000 + month * 100 + day;
-        }
-        else if (str_len == 23)  {
-            int             year, month, day;
-            MillisecondType ms;
-
-            ::sscanf (str, "%d/%d/%d %hd:%hd:%hd.%hd",
-                      &year, &month, &day, &hour_, &minute_, &second_, &ms);
-            date_ = year * 10000 + month * 100 + day;
-            nanosecond_ = ms * 1000000;;
-        }
-        else  {
-            String512   err;
-
-            err.printf ("DateTime::DateTime(const char *): Don't know how to "
-                        "parse '%s'", s);
-            throw std::runtime_error (err.c_str ());
-        }
+        date_ = year * 10000 + month * 100 + day;
     }
 }
 
@@ -435,7 +416,7 @@ days_in_month_ (DT_MONTH month, DatePartType year) noexcept  {
 //
 bool DateTime::is_valid () const noexcept  {
 
-    return (year () > 1900 && year () < 2525 &&
+    return (year () > 0 && year () < 9999 &&
             month () > DT_MONTH::BAD_MONTH && month () <= DT_MONTH::DEC &&
             dmonth () > 0 &&
             dmonth () <= days_in_month_ (month(), year()) &&
@@ -579,7 +560,7 @@ void DateTime::set_timezone (DT_TIME_ZONE tz)  {
 
 DateTime::DateType DateTime::date () const noexcept  {
 
-    if (date_ == DateType (INVALID_TIME_T_))
+    if (date_ == INVALID_DATE_)
         const_cast<DateTime *>(this)->breaktime_ (this->time (), nanosec ());
 
     return (date_);
@@ -640,7 +621,7 @@ DateTime::HourType DateTime::hour () const noexcept  {
     // It _always_ makes me sad to use const_cast<>. But then I get
     // over it.
     //
-    if (hour_ == HourType (INVALID_TIME_T_))
+    if (hour_ == INVALID_HOUR_)
         const_cast<DateTime *>(this)->breaktime_ (this->time (), nanosec ());
      return (hour_);
 }
@@ -649,7 +630,7 @@ DateTime::HourType DateTime::hour () const noexcept  {
 
 DateTime::MinuteType DateTime::minute () const noexcept  {
 
-    if (minute_ == MinuteType (INVALID_TIME_T_))
+    if (minute_ == INVALID_MINUTE_)
         const_cast<DateTime *>(this)->breaktime_ (this->time (), nanosec ());
 
     return (minute_);
@@ -659,7 +640,7 @@ DateTime::MinuteType DateTime::minute () const noexcept  {
 
 DateTime::SecondType DateTime::sec () const noexcept  {
 
-    if (second_ == SecondType (INVALID_TIME_T_))
+    if (second_ == INVALID_SECOND_)
         const_cast<DateTime *>(this)->breaktime_ (this->time (), nanosec ());
 
     return (second_);
@@ -687,6 +668,7 @@ DateTime::MicrosecondType DateTime::microsec () const noexcept  {
 
 DateTime::NanosecondType DateTime::nanosec () const noexcept  {
 
+    // nano secs could be negative because of architecture
     return (nanosecond_);
 }
 
@@ -700,7 +682,7 @@ DateTime::NanosecondType DateTime::nanosec () const noexcept  {
 //
 DateTime::EpochType DateTime::time () const noexcept  {
 
-    if (time_ == EpochType (INVALID_TIME_T_))  {
+    if (time_ == INVALID_TIME_T_)  {
         struct tm   ltime;
 
         // It _always_ makes me sad to use const_cast<>. But then I get
@@ -826,33 +808,25 @@ void DateTime::add_days (long days) noexcept  {
             // Take care of DST vs EST:
             // Ask me about why I have while loops
             //
-            if (addend > 0)  {
-                if (date () == prev_date.date ())
-                    while (date () == prev_date.date ())
-                        add_seconds (3600);
-                else if (int(dyear ()) - int(prev_date.dyear ()) > 1)
-                    while (int(dyear ()) - int(prev_date.dyear ()) > 1)
-                        add_seconds (-3600);
-                else if (hour () < prev_date.hour ())
-                    while (hour () < prev_date.hour ())
-                        add_seconds (3600);
-                else if (hour () > prev_date.hour ())
-                    while (hour () > prev_date.hour ())
-                        add_seconds (-3600);
+            if (date () == prev_date.date ())  {
+                while (date () == prev_date.date ())
+                    add_seconds (3600 * addend);
             }
-            else  {
-                if (date () == prev_date.date ())
-                    while (date () == prev_date.date ())
-                        add_seconds (-3600);
-                else if (int(dyear ()) - int(prev_date.dyear ()) < -1)
-                    while (int(dyear ()) - int(prev_date.dyear()) < -1)
-                        add_seconds (3600);
-                else if (hour () < prev_date.hour ())
-                    while (hour () < prev_date.hour ())
-                        add_seconds (3600);
-                else if (hour () > prev_date.hour ())
-                    while (hour () > prev_date.hour ())
-                        add_seconds (-3600);
+            else if (addend > 0 && int(dyear()) - int(prev_date.dyear()) > 1) {
+                while (int(dyear ()) - int(prev_date.dyear ()) > 1)
+                    add_seconds (-3600 * addend);
+            }
+            else if (addend < 0 && int(dyear()) - int(prev_date.dyear()) < -1) {
+                while (int(dyear ()) - int(prev_date.dyear()) < -1)
+                    add_seconds (3600);
+            }
+            else if (hour () < prev_date.hour ())  {
+                while (hour () < prev_date.hour ())
+                    add_seconds (3600);
+            }
+            else if (hour () > prev_date.hour ())  {
+                while (hour () > prev_date.hour ())
+                    add_seconds (-3600);
             }
 
             days -= addend;
@@ -991,6 +965,38 @@ std::string DateTime::string_format (DT_FORMAT format) const  {
 
 // ----------------------------------------------------------------------------
 
+inline void DateTime::change_env_timezone_(DT_TIME_ZONE time_zone)  {
+
+    if (time_zone != DT_TIME_ZONE::LOCAL)  {
+#ifdef _WIN32
+        // SetEnvironmentVariable (L"TZ", TIMEZONES_ [time_zone]);
+        _putenv (TIMEZONES_[static_cast<int>(time_zone)]);
+        _tzset ();
+#else
+        ::setenv ("TZ", TIMEZONES_[static_cast<int>(time_zone)], 1);
+        ::tzset ();
+#endif // _WIN32
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+inline void DateTime::reset_env_timezone_(DT_TIME_ZONE time_zone)  {
+
+    if (time_zone != DT_TIME_ZONE::LOCAL)  {
+#ifdef _WIN32
+        // SetEnvironmentVariable (L"TZ", nullptr);
+        _putenv ("TZ=");
+        _tzset ();
+#else
+        ::unsetenv ("TZ");
+        ::tzset ();
+#endif // _WIN32
+    }
+}
+
+// ----------------------------------------------------------------------------
+
 DateTime::EpochType DateTime::maketime_ (struct tm &ltime) const noexcept  {
 
     ltime.tm_sec = sec ();
@@ -1001,30 +1007,11 @@ DateTime::EpochType DateTime::maketime_ (struct tm &ltime) const noexcept  {
     ltime.tm_mon = static_cast<int>(month()) - 1;
     ltime.tm_year = year () - 1900;
 
-    if (time_zone_ != DT_TIME_ZONE::LOCAL)  {
-#ifdef _WIN32
-        // SetEnvironmentVariable (L"TZ", TIMEZONES_ [time_zone_]);
-        _putenv (TIMEZONES_[static_cast<int>(time_zone_)]);
-        _tzset ();
-#else
-        ::setenv ("TZ", TIMEZONES_[static_cast<int>(time_zone_)], 1);
-        ::tzset ();
-#endif // _WIN32
-    }
+    change_env_timezone_(time_zone_);
 
     const time_t    t  = ::mktime (&ltime);
 
-    if (time_zone_ != DT_TIME_ZONE::LOCAL)  {
-#ifdef _WIN32
-        // SetEnvironmentVariable (L"TZ", nullptr);
-        _putenv ("TZ=");
-        _tzset ();
-#else
-        ::unsetenv ("TZ");
-        ::tzset ();
-#endif // _WIN32
-    }
-
+    reset_env_timezone_(time_zone_);
     return (t);
 }
 
@@ -1033,16 +1020,7 @@ DateTime::EpochType DateTime::maketime_ (struct tm &ltime) const noexcept  {
 void
 DateTime::breaktime_ (EpochType the_time, NanosecondType nanosec) noexcept  {
 
-    if (time_zone_ != DT_TIME_ZONE::LOCAL)  {
-#ifdef _WIN32
-        // SetEnvironmentVariable (L"TZ", TIMEZONES_ [time_zone_]);
-        _putenv (TIMEZONES_[static_cast<int>(time_zone_)]);
-        _tzset ();
-#else
-        ::setenv ("TZ", TIMEZONES_[static_cast<int>(time_zone_)], 1);
-        ::tzset ();
-#endif // _WIN32
-    }
+    change_env_timezone_(time_zone_);
 
     struct tm   ltime;
 
@@ -1052,16 +1030,7 @@ DateTime::breaktime_ (EpochType the_time, NanosecondType nanosec) noexcept  {
     localtime_r (&the_time, &ltime);
 #endif // _WIN32
 
-    if (time_zone_ != DT_TIME_ZONE::LOCAL)  {
-#ifdef _WIN32
-        // SetEnvironmentVariable (L"TZ", nullptr);
-        _putenv ("TZ=");
-        _tzset ();
-#else
-        ::unsetenv ("TZ");
-        ::tzset ();
-#endif // _WIN32
-    }
+    reset_env_timezone_(time_zone_);
 
     date_ = (ltime.tm_year + 1900) * 100;
 

@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -43,6 +43,25 @@ HeteroPtrView::HeteroPtrView(T *begin_ptr, T *end_ptr)
               views_<T>[&to] = std::move(views_<T>[&from]); })  {
 
     views_<T>.emplace(this, VectorPtrView<T>(begin_ptr, end_ptr));
+}
+
+// ----------------------------------------------------------------------------
+
+template<typename T>
+void HeteroPtrView::set_begin_end_special(T *bp, T *ep_1)  {
+
+    clear_function_ = [](HeteroPtrView &hv) { views_<T>.erase(&hv); };
+    copy_function_  = [](const HeteroPtrView &from, HeteroPtrView &to)  {
+                          views_<T>[&to] = views_<T>[&from];
+                      };
+    move_function_ = [](HeteroPtrView &from, HeteroPtrView &to)  {
+                         views_<T>[&to] = std::move(views_<T>[&from]);
+                     };
+
+    VectorPtrView<T>    vv;
+
+    vv.set_begin_end_special(bp, ep_1);
+    views_<T>.emplace(this, vv);
 }
 
 // ----------------------------------------------------------------------------

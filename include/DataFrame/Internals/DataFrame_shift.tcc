@@ -18,7 +18,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <DataFrame/DataFrame.h>
 
 #include <algorithm>
+#include <iterator>
 
 // ----------------------------------------------------------------------------
 
@@ -153,10 +154,15 @@ void DataFrame<I, H>::shift_right_(V &vec, size_type n)  {
     const auto  vec_rend = vec.rend();
 
     for (auto riter = vec.rbegin(); riter != vec_rend; ++riter)
-        if (riter + n < vec_rend)
+        if (std::distance(riter, vec_rend) >
+            static_cast
+                <typename std::iterator_traits<decltype(riter)>::
+                    difference_type>(n))  {
             *riter = std::move(*(riter + n));
-        else
+        }
+        else  {
             *riter = std::move(_get_nan<value_type>());
+        }
 
     return;
 }
@@ -173,10 +179,15 @@ void DataFrame<I, H>::shift_left_(V &vec, size_type n)  {
     const auto  vec_end = vec.end();
 
     for (auto iter = vec.begin(); iter != vec_end; ++iter)
-        if (iter + n < vec_end)
+        if (std::distance(iter, vec_end) >
+            static_cast
+                <typename std::iterator_traits<decltype(iter)>::
+                    difference_type>(n))  {
             *iter = std::move(*(iter + n));
-        else
+        }
+        else  {
             *iter = std::move(_get_nan<value_type>());
+        }
 
     return;
 }

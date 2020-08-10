@@ -16,7 +16,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DISCLAIMED. IN NO EVENT SHALL Hossein Moein BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -63,10 +63,13 @@ int main(int argc, char *argv[]) {
     MeanVisitor<double, time_t> ln_mv;
     MeanVisitor<double, time_t> e_mv;
 
-    df.visit<double>("normal", n_mv);
-    df.visit<double>("log_normal", ln_mv);
-    df.visit<double>("exponential", e_mv);
+    auto    fut1 = df.visit_async<double>("normal", n_mv);
+    auto    fut2 = df.visit_async<double>("log_normal", ln_mv);
+    auto    fut3 = df.visit_async<double>("exponential", e_mv);
 
+    fut1.get();
+    fut2.get();
+    fut3.get();
     // std::cout << "Normal mean " << n_mv.get_result() << std::endl;
     // std::cout << "Log Normal mean " << ln_mv.get_result() << std::endl;
     // std::cout << "Exponential mean " << e_mv.get_result() << std::endl;
